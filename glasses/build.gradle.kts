@@ -25,6 +25,7 @@ android {
 
 dependencies {
     implementation(libs.core.ktx)
+    implementation(libs.androidx.material3)
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation("androidx.xr.glimmer:glimmer:1.0.0-alpha03")
