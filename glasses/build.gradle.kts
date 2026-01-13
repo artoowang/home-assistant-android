@@ -4,6 +4,8 @@ plugins {
     // the project similar to other modules. E.g., Java version.
     alias(libs.plugins.homeassistant.android.common)
     alias(libs.plugins.kotlin.android)
+    // TODO: Not sure if this is needed.
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -25,6 +27,7 @@ android {
 
 dependencies {
     implementation(libs.core.ktx)
+    implementation(libs.activity.compose)
     implementation(libs.androidx.material3)
     implementation(libs.appcompat)
     implementation(libs.material)
