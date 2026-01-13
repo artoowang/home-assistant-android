@@ -1,9 +1,13 @@
 plugins {
     alias(libs.plugins.android.library)
+
     // This is needed to run AndroidCommonConventionPlugin.kt to configure
     // the project similar to other modules. E.g., Java version.
     alias(libs.plugins.homeassistant.android.common)
-    alias(libs.plugins.kotlin.android)
+
+    // This is needed to run AndroidComposeConventionPlugin.kt to configure
+    // compose related settings similar to other modules.
+    alias(libs.plugins.homeassistant.android.compose)
 }
 
 android {
@@ -25,6 +29,7 @@ android {
 
 dependencies {
     implementation(libs.core.ktx)
+    implementation(libs.activity.compose)
     implementation(libs.androidx.material3)
     implementation(libs.appcompat)
     implementation(libs.material)
