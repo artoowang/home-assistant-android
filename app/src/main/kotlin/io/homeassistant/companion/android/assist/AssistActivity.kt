@@ -85,6 +85,7 @@ class AssistActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Timber.d("ZZZ: AssistActivity.onCreate: savedInstanceState=$savedInstanceState")
         updateShowWhenLocked()
 
         if (savedInstanceState == null) {
@@ -159,6 +160,7 @@ class AssistActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
+        Timber.d("ZZZ: AssistActivity.onResume")
         viewModel.setPermissionInfo(hasRecordingPermission()) {
             requestPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -166,11 +168,13 @@ class AssistActivity : BaseActivity() {
 
     override fun onPause() {
         super.onPause()
+        Timber.d("ZZZ: AssistActivity.onPause")
         viewModel.onPause()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        Timber.d("ZZZ: AssistActivity.onDestroy")
         viewModel.onDestroy()
     }
 
