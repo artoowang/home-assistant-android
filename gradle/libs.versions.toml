@@ -55,6 +55,7 @@ ktlint = "14.0.1"
 leakcanaryAndroid = "2.14"
 lifecycle = "2.10.0"
 material = "1.13.0"
+material3 = "1.5.0-alpha01"
 media = "1.7.1"
 media3 = "1.8.0"
 mockk = "1.14.7"
@@ -134,6 +135,7 @@ androidx-glance-testing = { module = "androidx.glance:glance-testing", version.r
 androidx-glance-appwidget-testing = { module = "androidx.glance:glance-appwidget-testing", version.ref = "glance" }
 androidx-health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "connectClient" }
 androidx-health-services-client = { module = "androidx.health:health-services-client", version.ref = "healthServicesClient" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 androidx-media = { module = "androidx.media:media", version.ref = "media" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHiltNavigationCompose" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }

@@ -5,10 +5,14 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
@@ -57,7 +61,11 @@ class GlassesActivity : ComponentActivity() {
     // -----------------------------------------------------------------------------------------------------------------
 
     private fun setupContent() {
-        // TODO
+        setContent {
+            GlimmerTheme {
+                RootScreen(isGranted = isPermissionsGranted)
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,4 +81,17 @@ class GlassesActivity : ComponentActivity() {
             requestPermissions()
         }
     }
+}
+
+@Composable
+fun RootScreen(isGranted: Boolean, modifier: Modifier = Modifier) {
+    // TODO
+//    if (isGranted) {
+//        GlimmerTodoScreen(modifier = modifier)
+//    } else {
+        Text(
+            text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",
+            modifier = modifier
+        )
+//    }
 }
