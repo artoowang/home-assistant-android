@@ -81,6 +81,8 @@ class AssistViewModel @Inject constructor(
                 serverManager.integrationRepository(selectedServerId).getLastUsedPipelineSttSupport()
             ) {
                 // Start microphone recording to prevent missing voice input while doing network checks
+                Timber.i("ZZZ: Start microphone recording to prevent missing voice input while doing " +
+                    "network checks")
                 onMicrophoneInput(proactive = true)
             }
 
@@ -293,6 +295,8 @@ class AssistViewModel @Inject constructor(
     }
 
     private fun runAssistPipeline(text: String?) {
+        Timber.i("ZZZ: runAssistPipeline: $text")
+
         val isVoice = text == null
         stopPlayback()
 
