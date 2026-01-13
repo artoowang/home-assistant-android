@@ -366,3 +366,7 @@ playStorePublishServiceCredentialsFile.json
 
 ## Temp results from the CI
 merged_results.sarif
+
+# Not sure if these need to be tracked?
+.idea/markdown.xml
+
