@@ -37,6 +37,8 @@ firebaseAppDistributionDefault {
 dependencies {
     // Most of the dependencies are coming from the convention plugin to avoid duplication with `:automotive` module.
     "fullImplementation"(libs.car.projected)
+    implementation("androidx.xr.projected:projected:1.0.0-alpha03")
+    implementation(project(":glasses"))
 }
 
 // Disable to fix memory leak and be compatible with the configuration cache.

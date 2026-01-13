@@ -1,6 +1,7 @@
 package io.homeassistant.companion.android.assist
 
 import android.Manifest
+import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
@@ -14,15 +15,40 @@ import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.lifecycleScope
+import androidx.xr.projected.ProjectedContext
+import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.BaseActivity
 import io.homeassistant.companion.android.assist.ui.AssistSheetView
 import io.homeassistant.companion.android.common.assist.AssistViewModelBase
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.launch.LaunchActivity
+import io.homeassistant.companion.android.glasses.GlassesActivity
 import io.homeassistant.companion.android.util.compose.HomeAssistantAppTheme
 import io.homeassistant.companion.android.webview.WebViewActivity
 import kotlinx.coroutines.launch
+import timber.log.Timber
+
+@OptIn(ExperimentalProjectedApi::class)
+private fun launchGlassesExperience(activity: Activity) {
+    Timber.d("ZZZ: Attempting to launch GlassesActivity on connected device...")
+
+    try {
+        val projectedContext = ProjectedContext.createProjectedDeviceContext(activity)
+        val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
+        val intent = Intent(activity, GlassesActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        activity.startActivity(intent, options.toBundle())
+        Timber.i("Successfully sent launch intent to the projected device.")
+
+    } catch (e: IllegalStateException) {
+        Timber.e("Projected device not ready: ${e.message}")
+    } catch (e: Exception) {
+        Timber.e("Error during launch: ${e.message}")
+    }
+}
 
 @AndroidEntryPoint
 class AssistActivity : BaseActivity() {
@@ -90,6 +116,9 @@ class AssistActivity : BaseActivity() {
                     null
                 },
             )
+
+            // TODO: Not sure if this is the best place to start GlassesActivity.
+            launchGlassesExperience(this)
         }
 
         val fromFrontend = intent.getBooleanExtra(EXTRA_FROM_FRONTEND, false)
