@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.projected.experimental.ExperimentalProjectedApi
@@ -86,13 +87,13 @@ class GlassesActivity : ComponentActivity() {
 
 @Composable
 fun RootScreen(isGranted: Boolean, modifier: Modifier = Modifier) {
-    // TODO
-//    if (isGranted) {
-//        GlimmerTodoScreen(modifier = modifier)
-//    } else {
+    if (isGranted) {
+        VoiceAssistScreen(modifier = modifier)
+    } else {
         Text(
             text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",
-            modifier = modifier
+            color = Color(0xFFFF0000),
+            modifier = modifier,
         )
-//    }
+    }
 }
