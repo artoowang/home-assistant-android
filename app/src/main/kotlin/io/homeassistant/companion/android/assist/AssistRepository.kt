@@ -52,14 +52,6 @@ interface AssistRepository {
         const val PIPELINE_LAST_USED = "last_used"
     }
 
-    enum class AssistInputMode {
-        TEXT,
-        TEXT_ONLY,
-        VOICE_INACTIVE,
-        VOICE_ACTIVE,
-        BLOCKED,
-    }
-
     // The ID of the selected Home Assistant server.
     var selectedServerId: Int
     // True to start microphone for recording as soon as the Voice Assist starts.

@@ -75,7 +75,7 @@ import androidx.compose.ui.unit.sp
 import com.mikepenz.iconics.compose.Image
 import com.mikepenz.iconics.typeface.library.community.material.CommunityMaterial
 import io.homeassistant.companion.android.R
-import io.homeassistant.companion.android.assist.AssistRepository
+import io.homeassistant.companion.android.assist.AssistViewModel
 import io.homeassistant.companion.android.common.R as commonR
 import io.homeassistant.companion.android.util.compose.safeScreenHeight
 import kotlinx.coroutines.launch
@@ -88,7 +88,7 @@ private val CONTROLS_HEIGHT = 112.dp
 fun AssistSheetView(
     conversation: List<AssistMessage>,
     pipelines: List<AssistUiPipeline>,
-    inputMode: AssistRepository.AssistInputMode?,
+    inputMode: AssistViewModel.AssistInputMode?,
     currentPipeline: AssistUiPipeline?,
     fromFrontend: Boolean,
     onSelectPipeline: (Int, String) -> Unit,
@@ -237,7 +237,7 @@ fun AssistSheetHeader(
 
 @Composable
 fun AssistSheetControls(
-    inputMode: AssistRepository.AssistInputMode?,
+    inputMode: AssistViewModel.AssistInputMode?,
     onChangeInput: () -> Unit,
     onTextInput: (String) -> Unit,
     onMicrophoneInput: () -> Unit,
@@ -247,21 +247,21 @@ fun AssistSheetControls(
         return
     }
 
-    if (inputMode == AssistRepository.AssistInputMode.BLOCKED) { // No info and not recoverable, no space
+    if (inputMode == AssistViewModel.AssistInputMode.BLOCKED) { // No info and not recoverable, no space
         return
     }
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(inputMode) {
-        if (inputMode == AssistRepository.AssistInputMode.TEXT ||
-            inputMode == AssistRepository.AssistInputMode.TEXT_ONLY
+        if (inputMode == AssistViewModel.AssistInputMode.TEXT ||
+            inputMode == AssistViewModel.AssistInputMode.TEXT_ONLY
         ) {
             focusRequester.requestFocus()
         }
     }
 
-    if (inputMode == AssistRepository.AssistInputMode.TEXT ||
-        inputMode == AssistRepository.AssistInputMode.TEXT_ONLY
+    if (inputMode == AssistViewModel.AssistInputMode.TEXT ||
+        inputMode == AssistViewModel.AssistInputMode.TEXT_ONLY
     ) {
         var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
             mutableStateOf(TextFieldValue())
@@ -287,13 +287,13 @@ fun AssistSheetControls(
                 if (text.text.isNotBlank()) {
                     onTextInput(text.text)
                     text = TextFieldValue("")
-                } else if (inputMode != AssistRepository.AssistInputMode.TEXT_ONLY) {
+                } else if (inputMode != AssistViewModel.AssistInputMode.TEXT_ONLY) {
                     onChangeInput()
                 }
             },
-            enabled = (inputMode != AssistRepository.AssistInputMode.TEXT_ONLY || text.text.isNotBlank()),
+            enabled = (inputMode != AssistViewModel.AssistInputMode.TEXT_ONLY || text.text.isNotBlank()),
         ) {
-            val inputIsSend = text.text.isNotBlank() || inputMode == AssistRepository.AssistInputMode.TEXT_ONLY
+            val inputIsSend = text.text.isNotBlank() || inputMode == AssistViewModel.AssistInputMode.TEXT_ONLY
             Image(
                 asset = if (inputIsSend) CommunityMaterial.Icon3.cmd_send else CommunityMaterial.Icon3.cmd_microphone,
                 contentDescription = stringResource(
@@ -310,7 +310,7 @@ fun AssistSheetControls(
             modifier = Modifier.size(64.dp),
             contentAlignment = Alignment.Center,
         ) {
-            val inputIsActive = inputMode == AssistRepository.AssistInputMode.VOICE_ACTIVE
+            val inputIsActive = inputMode == AssistViewModel.AssistInputMode.VOICE_ACTIVE
             if (inputIsActive) {
                 val transition = rememberInfiniteTransition()
                 val scale by transition.animateFloat(
