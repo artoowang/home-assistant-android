@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.xr.glimmer.ListItem
 import androidx.xr.glimmer.Text
 import androidx.xr.glimmer.list.VerticalList
@@ -25,6 +26,7 @@ import kotlin.math.min
 import timber.log.Timber
 
 private val DefaultListItemHeight = 64.dp
+private val ListItemSpacing = 12.dp
 private const val MaxItemsInList = 4
 private val IconSize = 30.dp
 
@@ -53,25 +55,31 @@ private fun GlimmerScreenContent(
     onExit: () -> Unit
 ) {
     ChatListView(
+        chatStrings = listOf(),
         onExit = onExit,
     )
 }
 
+// Represents a list of ChatItems, and an exit button.
 @Composable
 private fun ChatListView(
+    chatStrings: List<String>,
     onExit: () -> Unit,
 ) {
-    // TODO
-    val totalItems = 1
-
+    // Number of chat strings plus the exit button.
+    val totalItems = chatStrings.size + 1
     val listHeight = (min(totalItems, MaxItemsInList) * DefaultListItemHeight.value +
-        min(totalItems - 1, MaxItemsInList) * 12f)
+        min(totalItems - 1, MaxItemsInList) * ListItemSpacing.value)
 
     VerticalList(
         modifier = Modifier.height(listHeight.dp),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(ListItemSpacing),
     ) {
+        items(chatStrings.size, key = { i -> chatStrings[i] }) { i ->
+            ChatItem(chatStrings[i])
+        }
+
         item {
             ListItem(
                 onClick = onExit,
@@ -79,7 +87,7 @@ private fun ChatListView(
                     Image(
                         painter = painterResource(id = GlassesR.drawable.ic_close),
                         contentDescription = "Exit the app",
-                        modifier = Modifier.size(IconSize)
+                        modifier = Modifier.size(IconSize),
                     )
                 }
             ) {
@@ -89,69 +97,28 @@ private fun ChatListView(
     }
 }
 
+// Used to preview ChatList.
 @Preview
 @Composable
 private fun ChatListViewPreview() {
-    ChatListView(onExit = {})
+    ChatListView(
+        chatStrings = listOf(
+            "It's 12:30pm",
+            // Just a random long string.
+            "You've correctly identified the fontSize parameter, but it requires a specific unit type, not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp (scale-independent pixels) unit.\n" +
+                "To fix this, you need to import sp and use it to define the font size."
+        ),
+        onExit = {},
+    )
 }
 
-//@Composable
-//private fun GlimmerMicControlItem(
-//    isMicOn: Boolean,
-//    onToggle: () -> Unit
-//) {
-//    val icon = if (isMicOn) UiComponentR.drawable.ic_mic_off else UiComponentR.drawable.ic_ai_mic
-//
-//
-//    val displayTask = if (isMicOn) {
-//        stringResource(R.string.mic_on_label)
-//    } else {
-//        stringResource(R.string.mic_off_label)
-//    }
-//
-//    val contentDesc = if (isMicOn) {
-//        stringResource(R.string.mic_status_on)
-//    } else {
-//        stringResource(R.string.mic_status_off)
-//    }
-//
-//    ListItem(
-//        onClick = onToggle,
-//        leadingIcon = {
-//            Image(
-//                painter = painterResource(id = icon),
-//                contentDescription = contentDesc,
-//                modifier = Modifier.size(IconSize)
-//            )
-//        }
-//    ) {
-//        Text(text = displayTask)
-//    }
-//}
-//
-//@Composable
-//private fun GlimmerTodoItem(
-//    task: Todo,
-//    onToggle: (Int) -> Unit
-//) {
-//    val icon = if (task.isCompleted) UiComponentR.drawable.ic_check else UiComponentR.drawable.ic_circle
-//
-//    ListItem(
-//        onClick = { onToggle(task.id) },
-//        leadingIcon = {
-//            Image(
-//                painter = painterResource(id = icon),
-//                contentDescription = if (task.isCompleted)
-//                    stringResource(R.string.status_completed)
-//                else
-//                    stringResource(R.string.status_pending),
-//                modifier = Modifier.size(IconSize)
-//            )
-//        }
-//    ) {
-//        Text(
-//            text = task.task,
-//            textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null
-//        )
-//    }
-//}
+// Represents a single chat conversation entry.
+@Composable
+private fun ChatItem(text : String) {
+    ListItem {
+        Text(
+            text = text,
+            fontSize = 17.sp,
+        )
+    }
+}
