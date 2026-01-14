@@ -47,10 +47,6 @@ sealed interface AssistEvent {
 // It is going to be shared between multiple view models (e.g., one for mobile, another for
 // glasses).
 interface AssistRepository {
-    companion object {
-        const val PIPELINE_PREFERRED = "preferred"
-        const val PIPELINE_LAST_USED = "last_used"
-    }
 
     // The ID of the selected Home Assistant server.
     var selectedServerId: Int
@@ -60,7 +56,7 @@ interface AssistRepository {
     var hasPermission: Boolean
 
     // True if the system has microphone support.
-    // TODO: This probably should be moved into individual ViewModel.
+    // TODO: This should be moved back to AssistViewModel.
     val hasMicrophone: Boolean
 
     // Returns if the Home Assistant server is registered.

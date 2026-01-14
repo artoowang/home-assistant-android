@@ -25,11 +25,22 @@ class AssistViewModel @Inject constructor(
     private val application: Application,
 ) : ViewModel() {
 
+    companion object {
+        const val PIPELINE_PREFERRED = "preferred"
+        const val PIPELINE_LAST_USED = "last_used"
+    }
+
     enum class AssistInputMode {
+        // For when the user is expected to type their request.
         TEXT,
+        // Used when only text input is supported, for example, if the device has no microphone or the speech-to-text
+        // service is unavailable. In this mode, there won't be button to switch to voice input.
         TEXT_ONLY,
+        // The voice input mode is ready but not currently listening.
         VOICE_INACTIVE,
+        // The microphone is actively listening for the user's voice command.
         VOICE_ACTIVE,
+        // The assist feature is unavailable, for instance, if the app is not registered with a Home Assistant server.
         BLOCKED,
     }
 
@@ -58,11 +69,12 @@ class AssistViewModel @Inject constructor(
     var userCanManagePipelines by mutableStateOf(false)
         private set
 
+    // Returns if the Home Assistant server is registered.
+    // TODO: What does that mean?
     suspend fun isRegistered(): Boolean = assistRepository.isRegistered()
 
     fun onCreate(hasPermission: Boolean, serverId: Int?, pipelineId: String?, startListening: Boolean?) {
         viewModelScope.launch {
-            // TODO: Should hasPermission be a per-view thing instead?
             assistRepository.hasPermission = hasPermission
             serverId?.let {
                 filteredServerId = serverId
@@ -80,7 +92,7 @@ class AssistViewModel @Inject constructor(
             }
 
             if (
-                pipelineId == AssistRepository.PIPELINE_LAST_USED &&
+                pipelineId == PIPELINE_LAST_USED &&
                 recorderAutoStart &&
                 hasPermission &&
                 assistRepository.hasMicrophone &&
@@ -117,10 +129,10 @@ class AssistViewModel @Inject constructor(
             } else {
                 setPipeline(
                     when {
-                        pipelineId == AssistRepository.PIPELINE_LAST_USED -> serverManager.integrationRepository(
+                        pipelineId == PIPELINE_LAST_USED -> serverManager.integrationRepository(
                             assistRepository.selectedServerId,
                         ).getLastUsedPipelineId()
-                        pipelineId == AssistRepository.PIPELINE_PREFERRED -> null
+                        pipelineId == PIPELINE_PREFERRED -> null
                         pipelineId?.isNotBlank() == true -> pipelineId
                         else -> null
                     },

@@ -20,6 +20,7 @@ import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.BaseActivity
 import io.homeassistant.companion.android.assist.ui.AssistSheetView
+import io.homeassistant.companion.android.assist.AssistViewModel
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.launch.LaunchActivity
 import io.homeassistant.companion.android.glasses.GlassesActivity
@@ -103,9 +104,9 @@ class AssistActivity : BaseActivity() {
                     null
                 },
                 pipelineId = if (intent.hasExtra(EXTRA_PIPELINE)) {
-                    intent.getStringExtra(EXTRA_PIPELINE) ?: AssistRepository.PIPELINE_LAST_USED
+                    intent.getStringExtra(EXTRA_PIPELINE) ?: AssistViewModel.PIPELINE_LAST_USED
                 } else {
-                    AssistRepository.PIPELINE_LAST_USED
+                    AssistViewModel.PIPELINE_LAST_USED
                 },
                 startListening = if (intent.hasExtra(EXTRA_START_LISTENING)) {
                     intent.getBooleanExtra(EXTRA_START_LISTENING, true)
