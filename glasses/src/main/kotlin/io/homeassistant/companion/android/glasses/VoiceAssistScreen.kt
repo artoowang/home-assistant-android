@@ -1,26 +1,32 @@
 package io.homeassistant.companion.android.glasses
 
 import android.app.Activity
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.xr.glimmer.ListItem
 import androidx.xr.glimmer.Text
 import androidx.xr.glimmer.list.VerticalList
+import io.homeassistant.companion.android.glasses.R as GlassesR
 import kotlin.math.min
 import timber.log.Timber
 
 private val DefaultListItemHeight = 64.dp
 private const val MaxItemsInList = 4
+private val IconSize = 30.dp
 
 @Composable
 fun VoiceAssistScreen(
@@ -69,18 +75,24 @@ private fun ChatListView(
         item {
             ListItem(
                 onClick = onExit,
-//                leadingIcon = {
-//                    Image(
-//                        painter = painterResource(id = UiComponentR.drawable.ic_close),
-//                        contentDescription = stringResource(R.string.exit_app),
-//                        modifier = Modifier.size(IconSize)
-//                    )
-//                }
+                leadingIcon = {
+                    Image(
+                        painter = painterResource(id = GlassesR.drawable.ic_close),
+                        contentDescription = "Exit the app",
+                        modifier = Modifier.size(IconSize)
+                    )
+                }
             ) {
                 Text(text = "Exit")
             }
         }
     }
+}
+
+@Preview
+@Composable
+private fun ChatListViewPreview() {
+    ChatListView(onExit = {})
 }
 
 //@Composable
