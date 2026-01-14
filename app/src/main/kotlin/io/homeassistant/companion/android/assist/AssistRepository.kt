@@ -29,6 +29,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
+// The following are copied from AssistViewModelBase.kt.
+// This is to make the core logic a singleton. We can't remove
+// AssistViewModelBase.kt since it is still used elsewhere.
+
 sealed interface AssistEvent {
     sealed class Message(val message: String) : AssistEvent {
         class Input(message: String) : Message(message)
@@ -39,6 +43,9 @@ sealed interface AssistEvent {
     data object ContinueConversation : AssistEvent
 }
 
+// This class represents the core logic and states of the Voice Assist.
+// It is going to be shared between multiple view models (e.g., one for mobile, another for
+// glasses).
 interface AssistRepository {
     companion object {
         const val PIPELINE_PREFERRED = "preferred"
@@ -53,22 +60,46 @@ interface AssistRepository {
         BLOCKED,
     }
 
+    // The ID of the selected Home Assistant server.
     var selectedServerId: Int
+    // True to start microphone for recording as soon as the Voice Assist starts.
     var recorderProactive: Boolean
+    // True if the required permissions are granted.
     var hasPermission: Boolean
+
+    // True if the system has microphone support.
+    // TODO: This probably should be moved into individual ViewModel.
     val hasMicrophone: Boolean
 
+    // Returns if the Home Assistant server is registered.
+    // TODO: What does that mean?
     suspend fun isRegistered(): Boolean
+
+    /**
+     * @param text input to run an intent pipeline with, or `null` to run a STT pipeline (check if
+     * STT is supported _before_ calling this function)
+     * @param pipeline information about the pipeline, or `null` to use the server's default
+     * @param onEvent callback for events that should be use to update the UI
+     */
     fun runAssistPipeline(
         scope: CoroutineScope,
         text: String?,
         pipeline: AssistPipelineResponse?,
         onEvent: (AssistEvent) -> Unit
     )
+
+    // Starts audio recorder.
     fun startRecording(): Boolean
+
+    // TODO: What is this for?
     fun setupRecorderQueue(scope: CoroutineScope)
+
+    // Stops audio recorder.
     fun stopRecording(scope: CoroutineScope, sendRecorded: Boolean = true)
+
+    // Stops audio playback.
     fun stopPlayback()
+
     fun clearPipelineData()
 }
 
@@ -79,22 +110,26 @@ class AssistRepositoryImpl @Inject constructor(
     private val audioUrlPlayer: AudioUrlPlayer,
     private val application: Application
 ) : AssistRepository {
-
-    private val app = application
-
     override var selectedServerId = ServerManager.SERVER_ID_ACTIVE
 
+    // Audio recorder states.
     override var recorderProactive = false
     private var recorderJob: Job? = null
     private var recorderQueue: MutableList<ByteArray>? = null
-    override val hasMicrophone by lazy { app.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE) }
+
+    override val hasMicrophone by lazy {
+        application.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
+    }
     override var hasPermission = false
 
+    // Pipeline data.
     private var binaryHandlerId: Int? = null
     private var conversationId: String? = null
+
     private var continueConversation = AtomicBoolean(false)
 
     override suspend fun isRegistered(): Boolean = serverManager.isRegistered()
+
     override fun clearPipelineData() {
         binaryHandlerId = null
         conversationId = null
@@ -188,10 +223,11 @@ class AssistRepositoryImpl @Inject constructor(
                     else -> { /* Do nothing */ }
                 }
             } ?: run {
-                onEvent(AssistEvent.Message.Output(app.getString(R.string.assist_error)))
+                onEvent(AssistEvent.Message.Output(application.getString(R.string.assist_error)))
             }
         }
     }
+
     override fun startRecording(): Boolean {
         return try {
             audioRecorder.startRecording()
@@ -249,6 +285,10 @@ class AssistRepositoryImpl @Inject constructor(
         } else {
             recorderQueue = null
         }
+
+        // TODO: The previous logic here to set AssistInputMode to BLOCKED or VOICE_INACTIVE based on recorderProactive
+        // is no longer here, but where does it go?
+
         recorderProactive = false
     }
 
