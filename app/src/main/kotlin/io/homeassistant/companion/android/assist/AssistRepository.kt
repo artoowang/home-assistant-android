@@ -7,6 +7,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.homeassistant.companion.android.common.R
+import io.homeassistant.companion.android.common.assist.AssistViewModelBase.AssistInputMode
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineError
@@ -274,8 +275,15 @@ class AssistRepositoryImpl @Inject constructor(
             recorderQueue = null
         }
 
-        // TODO: The previous logic here to set AssistInputMode to BLOCKED or VOICE_INACTIVE based on recorderProactive
-        // is no longer here, but where does it go?
+        // TODO: Previously when this code is still in AssistViewModelBase, the code below handles a specific case:
+        // when the stopRecording() is called during "recorder proactive mode", i.e., when the voice input is enabled
+        // as soon as the voice assist UI shows up but the pipeline is not yet ready. This mode can be checked by 1)
+        // input mode is VOICE_ACTIVE, and 2) recorderProactive is currently true (since it will be reset to false at
+        // the end of the first recording). In such case, we set the input mode to BLOCKED and wait until the pipeline
+        // initialization to reset it (I think).
+        // if (getInput() == AssistInputMode.VOICE_ACTIVE) {
+        //     setInput(if (recorderProactive) AssistInputMode.BLOCKED else AssistInputMode.VOICE_INACTIVE)
+        // }
 
         recorderProactive = false
     }
