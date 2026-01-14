@@ -5,8 +5,7 @@ import android.content.pm.PackageManager
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
-import dagger.hilt.android.components.ViewModelComponent
-import dagger.hilt.android.scopes.ViewModelScoped
+import dagger.hilt.components.SingletonComponent
 import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
@@ -23,6 +22,7 @@ import io.homeassistant.companion.android.common.util.AudioUrlPlayer
 import io.homeassistant.companion.android.util.UrlUtil
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -72,7 +72,7 @@ interface AssistRepository {
     fun clearPipelineData()
 }
 
-@ViewModelScoped
+@Singleton
 class AssistRepositoryImpl @Inject constructor(
     private val serverManager: ServerManager,
     private val audioRecorder: AudioRecorder,
@@ -256,7 +256,7 @@ class AssistRepositoryImpl @Inject constructor(
 }
 
 @Module
-@InstallIn(ViewModelComponent::class)
+@InstallIn(SingletonComponent::class)
 abstract class AssistRepositoryModule {
     @Binds
     abstract fun bindAssistRepository(impl: AssistRepositoryImpl): AssistRepository
