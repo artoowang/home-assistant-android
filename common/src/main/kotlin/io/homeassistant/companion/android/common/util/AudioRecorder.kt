@@ -97,6 +97,10 @@ class AudioRecorder(private val audioManager: AudioManager?) {
         releaseRecorder()
     }
 
+    fun isRecording(): Boolean {
+        return recorderJob != null
+    }
+
     @SuppressLint("MissingPermission")
     private fun setupRecorder() {
         if (recorder != null) stopRecording()

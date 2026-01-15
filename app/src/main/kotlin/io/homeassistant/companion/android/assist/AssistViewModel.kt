@@ -260,16 +260,14 @@ class AssistViewModel @Inject constructor(
 
         assistRepository.stopPlayback()
 
-        val recording = try {
-            assistRepository.startRecording()
+        val recordingStarted = try {
+            assistRepository.startRecording(viewModelScope)
         } catch (e: Exception) {
             Timber.e(e, "Exception while starting recording")
             false
         }
 
-        if (recording) {
-            assistRepository.setupRecorderQueue(viewModelScope)
-            assistRepository.setMode(AssistRepository.InputMode.VOICE_ACTIVE)
+        if (recordingStarted) {
             runAssistPipeline(null)
         } else {
             _conversation.add(

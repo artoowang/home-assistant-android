@@ -100,10 +100,7 @@ interface AssistRepository {
     )
 
     // Starts audio recorder.
-    fun startRecording(): Boolean
-
-    // TODO: What is this for?
-    fun setupRecorderQueue(scope: CoroutineScope)
+    fun startRecording(scope: CoroutineScope): Boolean
 
     // Stops audio recorder.
     fun stopRecording(scope: CoroutineScope, sendRecorded: Boolean = true)
@@ -247,23 +244,29 @@ class AssistRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun startRecording(): Boolean {
-        return try {
+    override fun startRecording(scope: CoroutineScope): Boolean {
+        assert(!audioRecorder.isRecording()) { "audioRecorder should not be recording before start recording" }
+        assert(recorderQueue == null) { "recorderQueue should be null before start recording" }
+        assert(recorderJob == null) { "recorderJob should be null before start recording" }
+
+        val recordingStarted = try {
             audioRecorder.startRecording()
         } catch (e: Exception) {
             Timber.e(e, "Exception while starting recording")
             false
         }
-    }
+        if (!recordingStarted) {
+            return false;
+        }
 
-    override fun setupRecorderQueue(scope: CoroutineScope) {
-        check(recorderQueue == null) { "recorderQueue should be null before setting up a new one" }
         recorderQueue = mutableListOf()
         recorderJob = scope.launch {
             audioRecorder.audioBytes.collect {
                 recorderQueue?.add(it) ?: sendVoiceData(scope, it)
             }
         }
+        setMode(InputMode.VOICE_ACTIVE)
+        return true
     }
 
     private fun sendVoiceData(scope: CoroutineScope, data: ByteArray) {
@@ -288,6 +291,15 @@ class AssistRepositoryImpl @Inject constructor(
     }
 
     override fun stopRecording(scope: CoroutineScope, sendRecorded: Boolean) {
+        if (_inputMode.value != InputMode.VOICE_ACTIVE) {
+            // No action needed. Let's check for error condition, but not try to fix them.
+            assert(!audioRecorder.isRecording()) {
+                "audioRecorder should not be recording in input mode ${_inputMode.value}"
+            }
+            assert(recorderJob == null) { "There should be no recorderJob in input mode ${_inputMode.value}" }
+            return
+        }
+
         audioRecorder.stopRecording()
         recorderJob?.cancel()
         recorderJob = null
@@ -306,11 +318,7 @@ class AssistRepositoryImpl @Inject constructor(
             recorderQueue = null
         }
 
-        if (_inputMode.value == InputMode.VOICE_ACTIVE) {
-            setMode(InputMode.VOICE_INACTIVE)
-        } else {
-            Timber.e("stopRecording is called when inputMode is ${_inputMode.value}, not VOICE_ACTIVE")
-        }
+        setMode(InputMode.VOICE_INACTIVE)
     }
 
     override fun stopPlayback() = audioUrlPlayer.stop()
