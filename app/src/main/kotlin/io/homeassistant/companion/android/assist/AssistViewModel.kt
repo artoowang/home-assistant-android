@@ -60,7 +60,7 @@ class AssistViewModel @Inject constructor(
 
     fun onCreate(hasPermission: Boolean, serverId: Int?, pipelineId: String?, startListening: Boolean?) {
         viewModelScope.launch {
-            assistRepository.setMode(null)
+            assistRepository.init()
             assistRepository.hasPermission = hasPermission
             serverId?.let {
                 filteredServerId = serverId
@@ -69,7 +69,7 @@ class AssistViewModel @Inject constructor(
             startListening?.let { recorderAutoStart = it }
 
             if (!serverManager.isRegistered()) {
-                assistRepository.setMode(AssistRepository.InputMode.BLOCKED)
+                assistRepository.markBlocked()
                 _conversation.clear()
                 _conversation.add(
                     AssistMessage(application.getString(commonR.string.not_registered), isInput = false),
@@ -80,13 +80,13 @@ class AssistViewModel @Inject constructor(
             val supported = checkSupport()
             if (supported != true) assistRepository.stopRecording(viewModelScope)
             if (supported == null) { // Couldn't get config
-                assistRepository.setMode(AssistRepository.InputMode.BLOCKED)
+                assistRepository.markBlocked()
                 _conversation.clear()
                 _conversation.add(
                     AssistMessage(application.getString(commonR.string.assist_connnect), isInput = false),
                 )
             } else if (!supported) { // Core too old or doesn't include assist pipeline
-                assistRepository.setMode(AssistRepository.InputMode.BLOCKED)
+                assistRepository.markBlocked()
                 _conversation.clear()
                 _conversation.add(
                     AssistMessage(
@@ -200,20 +200,20 @@ class AssistViewModel @Inject constructor(
             assistRepository.clearPipelineData()
             if (assistRepository.hasMicrophone && it.sttEngine != null) {
                 if (recorderAutoStart && (assistRepository.hasPermission || requestSilently)) {
-                    assistRepository.setMode(AssistRepository.InputMode.VOICE_INACTIVE)
+                    assistRepository.switchToVoice()
                     onMicrophoneInput()
                 } else { // already requested permission once and was denied
-                    assistRepository.setMode(AssistRepository.InputMode.TEXT)
+                    assistRepository.switchToText(viewModelScope)
                 }
             } else {
-                assistRepository.setMode(AssistRepository.InputMode.TEXT_ONLY)
+                assistRepository.switchToText(viewModelScope, textOnly = true)
             }
         } ?: run {
             if (!id.isNullOrBlank()) {
                 setPipeline(null) // Try falling back to default pipeline
             } else {
                 Timber.w("Server ${assistRepository.selectedServerId} does not have any pipelines")
-                assistRepository.setMode(AssistRepository.InputMode.BLOCKED)
+                assistRepository.markBlocked()
                 _conversation.clear()
                 _conversation.add(
                     AssistMessage(application.getString(commonR.string.assist_error), isInput = false),
@@ -227,17 +227,13 @@ class AssistViewModel @Inject constructor(
         when (inputMode) {
             null, AssistRepository.InputMode.BLOCKED, AssistRepository.InputMode.TEXT_ONLY -> { /* Do nothing */ }
             AssistRepository.InputMode.TEXT -> {
-                assistRepository.setMode(AssistRepository.InputMode.VOICE_INACTIVE)
+                assistRepository.switchToVoice()
                 if (assistRepository.hasPermission || requestSilently) {
                     onMicrophoneInput()
                 }
             }
-            AssistRepository.InputMode.VOICE_INACTIVE -> {
-                assistRepository.setMode(AssistRepository.InputMode.TEXT)
-            }
-            AssistRepository.InputMode.VOICE_ACTIVE -> {
-                assistRepository.stopRecording(viewModelScope, sendRecorded = false)
-                assistRepository.setMode(AssistRepository.InputMode.TEXT)
+            AssistRepository.InputMode.VOICE_ACTIVE, AssistRepository.InputMode.VOICE_INACTIVE -> {
+                assistRepository.switchToText(viewModelScope)
             }
         }
     }
@@ -338,12 +334,12 @@ class AssistViewModel @Inject constructor(
         assistRepository.hasPermission = granted
         val pipelineReady = currentPipeline != null
         if (granted) {
-            assistRepository.setMode(AssistRepository.InputMode.VOICE_INACTIVE)
+            assistRepository.switchToVoice()
             if (pipelineReady) {
                 onMicrophoneInput()
             }
         } else if (requestSilently && pipelineReady) { // Don't notify the user if they haven't explicitly requested
-            assistRepository.setMode(AssistRepository.InputMode.TEXT)
+            assistRepository.switchToText(viewModelScope)
         } else if (!requestSilently) {
             _conversation.add(AssistMessage(application.getString(commonR.string.assist_permission), isInput = false))
         }

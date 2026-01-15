@@ -10,7 +10,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.homeassistant.companion.android.assist.AssistRepository.InputMode
 import io.homeassistant.companion.android.common.R
-import io.homeassistant.companion.android.common.assist.AssistViewModelBase.AssistInputMode
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineError
@@ -31,6 +30,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import timber.log.Timber
 
 // The following are copied from AssistViewModelBase.kt.
@@ -80,11 +80,17 @@ interface AssistRepository {
     // Returns if the Home Assistant server is registered through the onboarding process.
     suspend fun isRegistered(): Boolean
 
-    // Sets the desired input mode. See AssistantRepository.InputMode.
-    // TODO: We should try to move AssistViewModel away from using this as much as possible: instead of calling this
-    // directly, it should call some desired function from AssistRepository (e.g., startRecording, stopRecording), and
-    // the input mode is purely driven internally.
-    fun setMode(mode: InputMode?)
+    // Initializes the repository. This should be called when a voice assist session first started.
+    fun init()
+
+    // Clears pipeline related data.
+    fun clearPipelineData()
+
+    // Changes assist to voice mode.
+    fun switchToVoice()
+
+    // Changes assist to text mode. Set `textOnly` to true to indicate voice assist mode is not supported.
+    fun switchToText(scope: CoroutineScope, textOnly: Boolean = false)
 
     /**
      * @param text input to run an intent pipeline with, or `null` to run a STT pipeline (check if
@@ -108,7 +114,8 @@ interface AssistRepository {
     // Stops audio playback.
     fun stopPlayback()
 
-    fun clearPipelineData()
+    // Marks the assist is blocked and cannot function.
+    fun markBlocked()
 }
 
 @Singleton
@@ -141,14 +148,49 @@ class AssistRepositoryImpl @Inject constructor(
 
     override suspend fun isRegistered(): Boolean = serverManager.isRegistered()
 
-    override fun setMode(mode: InputMode?) {
-        Timber.d("Input mode changed: ${inputMode.value} -> $mode")
-        _inputMode.value = mode
+    override fun init() {
+        assert(!audioRecorder.isRecording()) { "Audio recorder is already recording at init." }
+        assert(recorderQueue == null) { "recorderQueue should be null at init." }
+        assert(recorderJob == null) { "recorderJob should be null at init." }
+
+        setMode(null)
+        selectedServerId = ServerManager.SERVER_ID_ACTIVE
+        hasPermission = false
+        clearPipelineData();
+        continueConversation.set(false)
     }
 
     override fun clearPipelineData() {
         binaryHandlerId = null
         conversationId = null
+    }
+
+    override fun switchToVoice() {
+        assert(_inputMode.value != InputMode.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
+        if (_inputMode.value == InputMode.VOICE_ACTIVE || _inputMode.value == InputMode.VOICE_INACTIVE) {
+            Timber.w("Assist is already in voice mode: ${inputMode.value}")
+            return
+        }
+        setMode(InputMode.VOICE_INACTIVE)
+    }
+
+    override fun switchToText(scope: CoroutineScope, textOnly: Boolean) {
+        assert(_inputMode.value != InputMode.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
+        if (_inputMode.value == InputMode.TEXT || _inputMode.value == InputMode.TEXT_ONLY) {
+            Timber.w("Assist is already in text mode: ${inputMode.value}")
+            return
+        }
+
+        if (_inputMode.value == InputMode.VOICE_ACTIVE) {
+            // Stop the current recording (and discard the recorded data).
+            stopRecording(scope, sendRecorded = false)
+        }
+
+        if (textOnly) {
+            setMode(InputMode.TEXT_ONLY)
+        } else {
+            setMode(InputMode.TEXT)
+        }
     }
 
     override fun runAssistPipeline(
@@ -322,6 +364,19 @@ class AssistRepositoryImpl @Inject constructor(
     }
 
     override fun stopPlayback() = audioUrlPlayer.stop()
+
+    override fun markBlocked() {
+        assert(_inputMode.value != InputMode.VOICE_ACTIVE) {
+            "Assist function should be blocked before it starts to record."
+        }
+        setMode(InputMode.BLOCKED)
+    }
+
+    // Sets the desired input mode. See AssistantRepository.InputMode.
+    private fun setMode(mode: InputMode?) {
+        Timber.d("Input mode changed: ${inputMode.value} -> $mode")
+        _inputMode.value = mode
+    }
 }
 
 @Module
