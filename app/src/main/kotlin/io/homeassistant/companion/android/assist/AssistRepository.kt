@@ -7,7 +7,6 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.homeassistant.companion.android.common.R
-import io.homeassistant.companion.android.common.assist.AssistViewModelBase.AssistInputMode
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineError
@@ -51,8 +50,6 @@ interface AssistRepository {
 
     // The ID of the selected Home Assistant server.
     var selectedServerId: Int
-    // True to start microphone for recording as soon as the Voice Assist starts.
-    var recorderProactive: Boolean
     // True if the required permissions are granted.
     var hasPermission: Boolean
 
@@ -102,7 +99,6 @@ class AssistRepositoryImpl @Inject constructor(
     override var selectedServerId = ServerManager.SERVER_ID_ACTIVE
 
     // Audio recorder states.
-    override var recorderProactive = false
     private var recorderJob: Job? = null
     private var recorderQueue: MutableList<ByteArray>? = null
 
@@ -227,6 +223,7 @@ class AssistRepositoryImpl @Inject constructor(
     }
 
     override fun setupRecorderQueue(scope: CoroutineScope) {
+        check(recorderQueue == null) { "recorderQueue should be null before setting up a new one" }
         recorderQueue = mutableListOf()
         recorderJob = scope.launch {
             audioRecorder.audioBytes.collect {
@@ -274,18 +271,6 @@ class AssistRepositoryImpl @Inject constructor(
         } else {
             recorderQueue = null
         }
-
-        // TODO: Previously when this code is still in AssistViewModelBase, the code below handles a specific case:
-        // when the stopRecording() is called during "recorder proactive mode", i.e., when the voice input is enabled
-        // as soon as the voice assist UI shows up but the pipeline is not yet ready. This mode can be checked by 1)
-        // input mode is VOICE_ACTIVE, and 2) recorderProactive is currently true (since it will be reset to false at
-        // the end of the first recording). In such case, we set the input mode to BLOCKED and wait until the pipeline
-        // initialization to reset it (I think).
-        // if (getInput() == AssistInputMode.VOICE_ACTIVE) {
-        //     setInput(if (recorderProactive) AssistInputMode.BLOCKED else AssistInputMode.VOICE_INACTIVE)
-        // }
-
-        recorderProactive = false
     }
 
     override fun stopPlayback() = audioUrlPlayer.stop()
