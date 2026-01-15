@@ -3,12 +3,15 @@ package io.homeassistant.companion.android.assist
 import android.app.Application
 import android.content.pm.PackageManager
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.viewModelScope
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.homeassistant.companion.android.assist.AssistRepository.InputMode
+import io.homeassistant.companion.android.assist.ui.AssistMessage
 import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
@@ -26,6 +29,7 @@ import io.homeassistant.companion.android.util.UrlUtil
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.text.clear
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -44,7 +48,6 @@ sealed interface AssistEvent {
         class Error(message: String) : Message(message)
     }
     class MessageChunk(val chunk: String) : AssistEvent
-    data object ContinueConversation : AssistEvent
 }
 
 // This class represents the core logic and states of the Voice Assist.
@@ -77,6 +80,9 @@ interface AssistRepository {
     // True if the system has microphone support.
     val hasMicrophone: Boolean
 
+    // Read-only state of the list of messages.
+    val conversation: List<AssistMessage>
+
     // Returns if the Home Assistant server is registered through the onboarding process.
     suspend fun isRegistered(): Boolean
 
@@ -96,13 +102,11 @@ interface AssistRepository {
      * @param text input to run an intent pipeline with, or `null` to run a STT pipeline (check if
      * STT is supported _before_ calling this function)
      * @param pipeline information about the pipeline, or `null` to use the server's default
-     * @param onEvent callback for events that should be use to update the UI
      */
     fun runAssistPipeline(
         scope: CoroutineScope,
         text: String?,
         pipeline: AssistPipelineResponse?,
-        onEvent: (AssistEvent) -> Unit,
     )
 
     // Starts audio recorder.
@@ -114,8 +118,15 @@ interface AssistRepository {
     // Stops audio playback.
     fun stopPlayback()
 
-    // Marks the assist is blocked and cannot function.
-    fun markBlocked()
+    // Marks the assist is blocked and cannot function. `errorMsg` will be shown in the conversation.
+    fun markBlocked(errorMsg: String)
+
+    // Clears the conversation.
+    fun clearConversation()
+
+    // Adds an error message to the conversation. This is used when we have an external error outside of
+    // AssistRepository, but we still want to show the error in the conversation.
+    fun addErrorMessage(message: String)
 }
 
 @Singleton
@@ -140,6 +151,18 @@ class AssistRepositoryImpl @Inject constructor(
     }
     override var hasPermission = false
 
+    // -----------------------------------------------------------------------------------------------------------------
+    // Conversation messages.
+
+    // Initial message at the beginning of the conversation.
+    private val startMessage =
+        AssistMessage(application.getString(R.string.assist_how_can_i_assist), isInput = false)
+
+    // Implementation of the state of the list of messages.
+    private val _conversation = mutableStateListOf(startMessage)
+    override val conversation: List<AssistMessage> = _conversation
+
+    // -----------------------------------------------------------------------------------------------------------------
     // Pipeline data.
     private var binaryHandlerId: Int? = null
     private var conversationId: String? = null
@@ -156,7 +179,8 @@ class AssistRepositoryImpl @Inject constructor(
         setMode(null)
         selectedServerId = ServerManager.SERVER_ID_ACTIVE
         hasPermission = false
-        clearPipelineData();
+        clearPipelineData()
+        clearConversation()
         continueConversation.set(false)
     }
 
@@ -197,9 +221,77 @@ class AssistRepositoryImpl @Inject constructor(
         scope: CoroutineScope,
         text: String?,
         pipeline: AssistPipelineResponse?,
-        onEvent: (AssistEvent) -> Unit,
     ) {
         val isVoice = text == null
+
+        stopPlayback()
+
+        // Initial user message is "…" if using voice input (i.e., `text` is null), or the actually provided initial
+        // input (i.e., `text`) otherwise.
+        val initialUserMessage = AssistMessage(text ?: "…", isInput = true)
+        _conversation.add(initialUserMessage)
+
+        // Placeholder Home Assistant response (i.e., "…") when we have the user input and are waiting for the response.
+        // - For voice input, this is added when we receive the STT result (AssistEvent.Message.Input).
+        // - For text input, this is added immediately below since the user input is already added.
+        val haPlaceholderMessage = AssistMessage("…", isInput = false)
+
+        // This is a reference to the last placeholder message currently in the conversation.
+        var lastPlaceholderMessage = if (isVoice) {
+            // For voice input, it is the initial placeholder user message (since we are waiting for the STT result).
+            initialUserMessage
+        } else {
+            // For text input, it is the placeholder assistant message (since the user message is already added).
+            _conversation.add(haPlaceholderMessage)
+            haPlaceholderMessage
+        }
+
+        // TODO: We can probably merge this into the flow handling below, and skip all AssistEvents
+        fun onAssistEvent(event: AssistEvent) {
+            when (event) {
+                // Complete user (input) or assistant (output) message:
+                // - User messages represent the STT outputs, and we only get these messages with voice assist. (Text
+                //   input is provided directly through `text`).
+                // - Assistant messages represent the Home Assistant responses.
+                is AssistEvent.Message -> {
+                    // The `lastPlaceholderMessage` is not necessarily in the conversation:
+                    // - If it is not in the conversation, it means we are not doing voice input (so no input
+                    //   placeholder), and the output is already replaced by MessageChunks. In such case, we don't add
+                    //   the new message in the event.
+                    //   TODO: This does mean that we lose the potential error message.
+                    // - If it is still in the conversation, we then replace the last placeholder with the incoming
+                    //   message. If the event is an input message, we also add a new placeholder for the output, and
+                    //   update the last placeholder reference accordingly.
+                    // TODO: It seems we can make this easier to read by separately handle input/output/error messages.
+                    _conversation.indexOf(lastPlaceholderMessage).takeIf { pos -> pos >= 0 }?.let { index ->
+                        val isInput = event is AssistEvent.Message.Input
+                        val isError = event is AssistEvent.Message.Error
+                        _conversation[index] = AssistMessage(
+                            message = event.message.trim(),
+                            isInput = isInput,
+                            isError = isError,
+                        )
+                        if (isInput) {
+                            _conversation.add(haPlaceholderMessage)
+                            lastPlaceholderMessage = haPlaceholderMessage
+                        }
+                    }
+                }
+                is AssistEvent.MessageChunk -> {
+                    val lastMessage = _conversation.last()
+                    if (lastMessage == haPlaceholderMessage) {
+                        // Remove "…" message and add the chunk received
+                        _conversation.removeAt(_conversation.lastIndex)
+                        _conversation.add(lastMessage.copy(message = event.chunk))
+                    } else {
+                        // Replace last message with the updated message with the new chunk append
+                        _conversation[_conversation.lastIndex] =
+                            lastMessage.copy(message = lastMessage.message + event.chunk)
+                    }
+                }
+            }
+        }
+
         var job: Job? = null
         job = scope.launch {
             val flow = if (isVoice) {
@@ -238,12 +330,12 @@ class AssistRepositoryImpl @Inject constructor(
                     AssistPipelineEventType.STT_END -> {
                         stopRecording(scope)
                         (it.data as? AssistPipelineSttEnd)?.sttOutput?.let { response ->
-                            onEvent(AssistEvent.Message.Input(response["text"] as String))
+                            onAssistEvent(AssistEvent.Message.Input(response["text"] as String))
                         }
                     }
                     AssistPipelineEventType.INTENT_PROGRESS -> {
                         (it.data as? AssistPipelineIntentProgress)?.chatLogDelta?.content?.let { delta ->
-                            onEvent(AssistEvent.MessageChunk(delta))
+                            onAssistEvent(AssistEvent.MessageChunk(delta))
                         }
                     }
                     AssistPipelineEventType.INTENT_END -> {
@@ -251,7 +343,7 @@ class AssistRepositoryImpl @Inject constructor(
                         conversationId = data.conversationId
                         continueConversation.set(data.continueConversation)
                         data.response.speech?.plain?.get("speech")?.let { speech ->
-                            onEvent(AssistEvent.Message.Output(speech))
+                            onAssistEvent(AssistEvent.Message.Output(speech))
                         }
                     }
                     AssistPipelineEventType.TTS_END -> {
@@ -261,10 +353,12 @@ class AssistRepositoryImpl @Inject constructor(
                             if (!audioPath.isNullOrBlank()) {
                                 playAudio(audioPath)
                             }
+                            // TODO: Update comments
                             // We send the continueConversation flag here after getting it from AssistPipelineEventType.INTENT_END so that
                             // we let the mediaplayer finishing playing the audio before recording a new entry from the user.
                             if (continueConversation.getAndSet(false)) {
-                                onEvent(AssistEvent.ContinueConversation)
+                                // TODO: Can we continue to runAssistPipeline from here? Or do we need to do it from
+                                // AVM?
                             }
                         }
                     }
@@ -274,14 +368,14 @@ class AssistRepositoryImpl @Inject constructor(
                     }
                     AssistPipelineEventType.ERROR -> {
                         val errorMessage = (it.data as? AssistPipelineError)?.message ?: return@collect
-                        onEvent(AssistEvent.Message.Error(errorMessage))
+                        onAssistEvent(AssistEvent.Message.Error(errorMessage))
                         stopRecording(scope)
                         job?.cancel()
                     }
                     else -> { /* Do nothing */ }
                 }
             } ?: run {
-                onEvent(AssistEvent.Message.Output(application.getString(R.string.assist_error)))
+                onAssistEvent(AssistEvent.Message.Output(application.getString(R.string.assist_error)))
             }
         }
     }
@@ -298,6 +392,7 @@ class AssistRepositoryImpl @Inject constructor(
             false
         }
         if (!recordingStarted) {
+            addErrorMessage(application.getString(R.string.assist_error))
             return false;
         }
 
@@ -365,11 +460,22 @@ class AssistRepositoryImpl @Inject constructor(
 
     override fun stopPlayback() = audioUrlPlayer.stop()
 
-    override fun markBlocked() {
+    override fun markBlocked(errorMsg: String) {
         assert(_inputMode.value != InputMode.VOICE_ACTIVE) {
             "Assist function should be blocked before it starts to record."
         }
         setMode(InputMode.BLOCKED)
+        _conversation.clear()
+        addErrorMessage(errorMsg)
+    }
+
+    override fun clearConversation() {
+        _conversation.clear()
+        _conversation.add(startMessage)
+    }
+
+    override fun addErrorMessage(message: String) {
+        _conversation.add(AssistMessage(message, isInput = false, isError = true))
     }
 
     // Sets the desired input mode. See AssistantRepository.InputMode.

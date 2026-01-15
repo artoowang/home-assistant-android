@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.homeassistant.companion.android.assist.ui.AssistMessage
 import io.homeassistant.companion.android.assist.ui.AssistUiPipeline
+import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.R as commonR
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineResponse
@@ -38,10 +39,8 @@ class AssistViewModel @Inject constructor(
     private var requestPermission: (() -> Unit)? = null
     private var requestSilently = true
 
-    private val startMessage =
-        AssistMessage(application.getString(commonR.string.assist_how_can_i_assist), isInput = false)
-    private val _conversation = mutableStateListOf(startMessage)
-    val conversation: List<AssistMessage> = _conversation
+    // Read-only state of the list of the messages.
+    val conversation: List<AssistMessage> = assistRepository.conversation
 
     private val _pipelines = mutableStateListOf<AssistUiPipeline>()
     val pipelines: List<AssistUiPipeline> = _pipelines
@@ -54,8 +53,7 @@ class AssistViewModel @Inject constructor(
     var userCanManagePipelines by mutableStateOf(false)
         private set
 
-    // Returns if the Home Assistant server is registered.
-    // TODO: What does that mean?
+    // Returns if the Home Assistant server is registered with the onboarding.
     suspend fun isRegistered(): Boolean = assistRepository.isRegistered()
 
     fun onCreate(hasPermission: Boolean, serverId: Int?, pipelineId: String?, startListening: Boolean?) {
@@ -69,35 +67,20 @@ class AssistViewModel @Inject constructor(
             startListening?.let { recorderAutoStart = it }
 
             if (!serverManager.isRegistered()) {
-                assistRepository.markBlocked()
-                _conversation.clear()
-                _conversation.add(
-                    AssistMessage(application.getString(commonR.string.not_registered), isInput = false),
-                )
+                assistRepository.markBlocked(application.getString(commonR.string.not_registered))
                 return@launch
             }
 
             val supported = checkSupport()
             if (supported != true) assistRepository.stopRecording(viewModelScope)
             if (supported == null) { // Couldn't get config
-                assistRepository.markBlocked()
-                _conversation.clear()
-                _conversation.add(
-                    AssistMessage(application.getString(commonR.string.assist_connnect), isInput = false),
-                )
+                assistRepository.markBlocked(application.getString(commonR.string.assist_connnect))
             } else if (!supported) { // Core too old or doesn't include assist pipeline
-                assistRepository.markBlocked()
-                _conversation.clear()
-                _conversation.add(
-                    AssistMessage(
-                        application.getString(
-                            commonR.string.no_assist_support,
-                            "2023.5",
-                            application.getString(commonR.string.no_assist_support_assist_pipeline),
-                        ),
-                        isInput = false,
-                    ),
-                )
+                assistRepository.markBlocked(application.getString(
+                    commonR.string.no_assist_support,
+                    "2023.5",
+                    application.getString(commonR.string.no_assist_support_assist_pipeline),
+                ))
             } else {
                 setPipeline(
                     when {
@@ -124,14 +107,14 @@ class AssistViewModel @Inject constructor(
      * @param lockedMatches whether the locked state changed and contents should be cleared
      */
     fun onNewIntent(intent: Intent, lockedMatches: Boolean) {
+        Timber.d("ZZZ: onNewIntent: $intent")
         if (
             (intent.flags and Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT != 0) ||
             intent.action in
             listOf(Intent.ACTION_ASSIST, "android.intent.action.VOICE_ASSIST", Intent.ACTION_VOICE_COMMAND)
         ) {
             if (!lockedMatches && inputMode != AssistRepository.InputMode.BLOCKED) {
-                _conversation.clear()
-                _conversation.add(startMessage)
+                assistRepository.clearConversation()
             }
             if (inputMode == AssistRepository.InputMode.VOICE_ACTIVE ||
                     inputMode == AssistRepository.InputMode.VOICE_INACTIVE) {
@@ -195,8 +178,7 @@ class AssistViewModel @Inject constructor(
             )
             serverManager.integrationRepository(assistRepository.selectedServerId).setLastUsedPipeline(it.id, it.sttEngine != null)
 
-            _conversation.clear()
-            _conversation.add(startMessage)
+            assistRepository.clearConversation()
             assistRepository.clearPipelineData()
             if (assistRepository.hasMicrophone && it.sttEngine != null) {
                 if (recorderAutoStart && (assistRepository.hasPermission || requestSilently)) {
@@ -213,11 +195,7 @@ class AssistViewModel @Inject constructor(
                 setPipeline(null) // Try falling back to default pipeline
             } else {
                 Timber.w("Server ${assistRepository.selectedServerId} does not have any pipelines")
-                assistRepository.markBlocked()
-                _conversation.clear()
-                _conversation.add(
-                    AssistMessage(application.getString(commonR.string.assist_error), isInput = false),
-                )
+                assistRepository.markBlocked(application.getString(commonR.string.assist_error))
             }
         }
     }
@@ -262,94 +240,18 @@ class AssistViewModel @Inject constructor(
             Timber.e(e, "Exception while starting recording")
             false
         }
-
         if (recordingStarted) {
             runAssistPipeline(null)
-        } else {
-            _conversation.add(
-                AssistMessage(application.getString(commonR.string.assist_error), isInput = false, isError = true),
-            )
         }
     }
 
     private fun runAssistPipeline(text: String?) {
         Timber.i("ZZZ: runAssistPipeline: $text")
-
-        val isVoice = text == null
-        assistRepository.stopPlayback()
-
-        // Initial user message is "…" if using voice input (i.e., `text` is null), or the actually provided initial
-        // input (i.e., `text`) otherwise.
-        val initialUserMessage = AssistMessage(text ?: "…", isInput = true)
-        _conversation.add(initialUserMessage)
-
-        // Placeholder Home Assistant response (i.e., "…") when we have the user input and are waiting for the response.
-        // - For voice input, this is added when we receive the STT result (AssistEvent.Message.Input).
-        // - For text input, this is added immediately below since the user input is already added.
-        val haPlaceholderMessage = AssistMessage("…", isInput = false)
-
-        // This is a reference to the last placeholder message currently in the conversation.
-        var lastPlaceholderMessage = if (isVoice) {
-            // For voice input, it is the initial placeholder user message (since we are waiting for the STT result).
-            initialUserMessage
-        } else {
-            // For text input, it is the placeholder assistant message (since the user message is already added).
-            _conversation.add(haPlaceholderMessage)
-            haPlaceholderMessage
-        }
-
         assistRepository.runAssistPipeline(
             viewModelScope,
             text,
             selectedPipeline,
-        ) { event ->
-            when (event) {
-                // Complete user (input) or assistant (output) message:
-                // - User messages represent the STT outputs, and we only get these messages with voice assist. (Text
-                //   input is provided directly through `text`).
-                // - Assistant messages represent the Home Assistant responses.
-                is AssistEvent.Message -> {
-                    // The `lastPlaceholderMessage` is not necessarily in the conversation:
-                    // - If it is not in the conversation, it means we are not doing voice input (so no input
-                    //   placeholder), and the output is already replaced by MessageChunks. In such case, we don't add
-                    //   the new message in the event.
-                    //   TODO: This does mean that we lose the potential error message.
-                    // - If it is still in the conversation, we then replace the last placeholder with the incoming
-                    //   message. If the event is an input message, we also add a new placeholder for the output, and
-                    //   update the last placeholder reference accordingly.
-                    // TODO: It seems we can make this easier to read by separately handle input/output/error messages.
-                    _conversation.indexOf(lastPlaceholderMessage).takeIf { pos -> pos >= 0 }?.let { index ->
-                        val isInput = event is AssistEvent.Message.Input
-                        val isError = event is AssistEvent.Message.Error
-                        _conversation[index] = AssistMessage(
-                            message = event.message.trim(),
-                            isInput = isInput,
-                            isError = isError,
-                        )
-                        if (isInput) {
-                            _conversation.add(haPlaceholderMessage)
-                            lastPlaceholderMessage = haPlaceholderMessage
-                        }
-                        if (isError && inputMode == AssistRepository.InputMode.VOICE_ACTIVE) {
-                            assistRepository.stopRecording(viewModelScope)
-                        }
-                    }
-                }
-                is AssistEvent.MessageChunk -> {
-                    val lastMessage = _conversation.last()
-                    if (lastMessage == haPlaceholderMessage) {
-                        // Remove "…" message and add the chunk received
-                        _conversation.removeAt(_conversation.lastIndex)
-                        _conversation.add(lastMessage.copy(message = event.chunk))
-                    } else {
-                        // Replace last message with the updated message with the new chunk append
-                        _conversation[_conversation.lastIndex] =
-                            lastMessage.copy(message = lastMessage.message + event.chunk)
-                    }
-                }
-                is AssistEvent.ContinueConversation -> onMicrophoneInput()
-            }
-        }
+        )
     }
 
     fun setPermissionInfo(hasPermission: Boolean, callback: () -> Unit) {
@@ -368,7 +270,7 @@ class AssistViewModel @Inject constructor(
         } else if (requestSilently && pipelineReady) { // Don't notify the user if they haven't explicitly requested
             assistRepository.switchToText(viewModelScope)
         } else if (!requestSilently) {
-            _conversation.add(AssistMessage(application.getString(commonR.string.assist_permission), isInput = false))
+            assistRepository.addErrorMessage(application.getString(commonR.string.assist_permission))
         }
         if (pipelineReady) requestSilently = false
     }
