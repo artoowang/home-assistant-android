@@ -2,11 +2,15 @@ package io.homeassistant.companion.android.assist
 
 import android.app.Application
 import android.content.pm.PackageManager
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import io.homeassistant.companion.android.assist.AssistRepository.InputMode
 import io.homeassistant.companion.android.common.R
+import io.homeassistant.companion.android.common.assist.AssistViewModelBase.AssistInputMode
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineError
@@ -48,18 +52,39 @@ sealed interface AssistEvent {
 // glasses).
 interface AssistRepository {
 
+    enum class InputMode {
+        // For when the user is expected to type their request.
+        TEXT,
+        // Used when only text input is supported, for example, if the device has no microphone or the speech-to-text
+        // service is unavailable. In this mode, there won't be button to switch to voice input.
+        TEXT_ONLY,
+        // The voice input mode is ready but not currently listening.
+        VOICE_INACTIVE,
+        // The microphone is actively listening for the user's voice command.
+        VOICE_ACTIVE,
+        // The assist feature is unavailable, for instance, if the app is not registered with a Home Assistant server.
+        BLOCKED,
+    }
+
+    // Input mode state for Composable to react. null means the repository is not ready yet.
+    val inputMode: State<InputMode?>
+
     // The ID of the selected Home Assistant server.
     var selectedServerId: Int
     // True if the required permissions are granted.
     var hasPermission: Boolean
 
     // True if the system has microphone support.
-    // TODO: This should be moved back to AssistViewModel.
     val hasMicrophone: Boolean
 
-    // Returns if the Home Assistant server is registered.
-    // TODO: What does that mean?
+    // Returns if the Home Assistant server is registered through the onboarding process.
     suspend fun isRegistered(): Boolean
+
+    // Sets the desired input mode. See AssistantRepository.InputMode.
+    // TODO: We should try to move AssistViewModel away from using this as much as possible: instead of calling this
+    // directly, it should call some desired function from AssistRepository (e.g., startRecording, stopRecording), and
+    // the input mode is purely driven internally.
+    fun setMode(mode: InputMode?)
 
     /**
      * @param text input to run an intent pipeline with, or `null` to run a STT pipeline (check if
@@ -71,7 +96,7 @@ interface AssistRepository {
         scope: CoroutineScope,
         text: String?,
         pipeline: AssistPipelineResponse?,
-        onEvent: (AssistEvent) -> Unit
+        onEvent: (AssistEvent) -> Unit,
     )
 
     // Starts audio recorder.
@@ -94,8 +119,12 @@ class AssistRepositoryImpl @Inject constructor(
     private val serverManager: ServerManager,
     private val audioRecorder: AudioRecorder,
     private val audioUrlPlayer: AudioUrlPlayer,
-    private val application: Application
+    private val application: Application,
 ) : AssistRepository {
+
+    private val _inputMode = mutableStateOf<InputMode?>(null)
+    override val inputMode: State<InputMode?> = _inputMode
+
     override var selectedServerId = ServerManager.SERVER_ID_ACTIVE
 
     // Audio recorder states.
@@ -114,6 +143,11 @@ class AssistRepositoryImpl @Inject constructor(
     private var continueConversation = AtomicBoolean(false)
 
     override suspend fun isRegistered(): Boolean = serverManager.isRegistered()
+
+    override fun setMode(mode: InputMode?) {
+        Timber.d("Input mode changed: ${inputMode.value} -> $mode")
+        _inputMode.value = mode
+    }
 
     override fun clearPipelineData() {
         binaryHandlerId = null
@@ -270,6 +304,12 @@ class AssistRepositoryImpl @Inject constructor(
             }
         } else {
             recorderQueue = null
+        }
+
+        if (_inputMode.value == InputMode.VOICE_ACTIVE) {
+            setMode(InputMode.VOICE_INACTIVE)
+        } else {
+            Timber.e("stopRecording is called when inputMode is ${_inputMode.value}, not VOICE_ACTIVE")
         }
     }
 
