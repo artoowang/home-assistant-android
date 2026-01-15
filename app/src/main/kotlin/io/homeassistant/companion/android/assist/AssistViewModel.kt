@@ -278,11 +278,25 @@ class AssistViewModel @Inject constructor(
         val isVoice = text == null
         assistRepository.stopPlayback()
 
-        val userMessage = AssistMessage(text ?: "…", isInput = true)
-        _conversation.add(userMessage)
-        val haMessage = AssistMessage("…", isInput = false)
-        if (!isVoice) _conversation.add(haMessage)
-        var message = if (isVoice) userMessage else haMessage
+        // Initial user message is "…" if using voice input (i.e., `text` is null), or the actually provided initial
+        // input (i.e., `text`) otherwise.
+        val initialUserMessage = AssistMessage(text ?: "…", isInput = true)
+        _conversation.add(initialUserMessage)
+
+        // Placeholder Home Assistant response (i.e., "…") when we have the user input and are waiting for the response.
+        // - For voice input, this is added when we receive the STT result (AssistEvent.Message.Input).
+        // - For text input, this is added immediately below since the user input is already added.
+        val haPlaceholderMessage = AssistMessage("…", isInput = false)
+
+        // This is a reference to the last placeholder message currently in the conversation.
+        var lastPlaceholderMessage = if (isVoice) {
+            // For voice input, it is the initial placeholder user message (since we are waiting for the STT result).
+            initialUserMessage
+        } else {
+            // For text input, it is the placeholder assistant message (since the user message is already added).
+            _conversation.add(haPlaceholderMessage)
+            haPlaceholderMessage
+        }
 
         assistRepository.runAssistPipeline(
             viewModelScope,
@@ -290,18 +304,31 @@ class AssistViewModel @Inject constructor(
             selectedPipeline,
         ) { event ->
             when (event) {
+                // Complete user (input) or assistant (output) message:
+                // - User messages represent the STT outputs, and we only get these messages with voice assist. (Text
+                //   input is provided directly through `text`).
+                // - Assistant messages represent the Home Assistant responses.
                 is AssistEvent.Message -> {
-                    _conversation.indexOf(message).takeIf { pos -> pos >= 0 }?.let { index ->
+                    // The `lastPlaceholderMessage` is not necessarily in the conversation:
+                    // - If it is not in the conversation, it means we are not doing voice input (so no input
+                    //   placeholder), and the output is already replaced by MessageChunks. In such case, we don't add
+                    //   the new message in the event.
+                    //   TODO: This does mean that we lose the potential error message.
+                    // - If it is still in the conversation, we then replace the last placeholder with the incoming
+                    //   message. If the event is an input message, we also add a new placeholder for the output, and
+                    //   update the last placeholder reference accordingly.
+                    // TODO: It seems we can make this easier to read by separately handle input/output/error messages.
+                    _conversation.indexOf(lastPlaceholderMessage).takeIf { pos -> pos >= 0 }?.let { index ->
                         val isInput = event is AssistEvent.Message.Input
                         val isError = event is AssistEvent.Message.Error
-                        _conversation[index] = message.copy(
+                        _conversation[index] = AssistMessage(
                             message = event.message.trim(),
                             isInput = isInput,
                             isError = isError,
                         )
                         if (isInput) {
-                            _conversation.add(haMessage)
-                            message = haMessage
+                            _conversation.add(haPlaceholderMessage)
+                            lastPlaceholderMessage = haPlaceholderMessage
                         }
                         if (isError && inputMode == AssistRepository.InputMode.VOICE_ACTIVE) {
                             assistRepository.stopRecording(viewModelScope)
@@ -310,8 +337,8 @@ class AssistViewModel @Inject constructor(
                 }
                 is AssistEvent.MessageChunk -> {
                     val lastMessage = _conversation.last()
-                    if (lastMessage == haMessage) {
-                        // Remove '...' message and add the chunk received
+                    if (lastMessage == haPlaceholderMessage) {
+                        // Remove "…" message and add the chunk received
                         _conversation.removeAt(_conversation.lastIndex)
                         _conversation.add(lastMessage.copy(message = event.chunk))
                     } else {
