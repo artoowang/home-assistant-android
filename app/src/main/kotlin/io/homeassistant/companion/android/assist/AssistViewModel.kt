@@ -9,10 +9,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.homeassistant.companion.android.assist.ui.AssistMessage
+import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.assist.ui.AssistUiPipeline
-import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.R as commonR
+import io.homeassistant.companion.android.common.assist.AssistRepository
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineResponse
 import javax.inject.Inject

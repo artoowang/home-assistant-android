@@ -75,11 +75,11 @@ import androidx.compose.ui.unit.sp
 import com.mikepenz.iconics.compose.Image
 import com.mikepenz.iconics.typeface.library.community.material.CommunityMaterial
 import io.homeassistant.companion.android.R
-import io.homeassistant.companion.android.assist.AssistRepository
+import io.homeassistant.companion.android.common.assist.AssistRepository
 import io.homeassistant.companion.android.common.R as commonR
+import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.util.compose.safeScreenHeight
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 private val HEADER_HEIGHT = 48.dp
 private val CONTROLS_HEIGHT = 112.dp

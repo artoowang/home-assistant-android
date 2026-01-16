@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.viewModels
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,10 +19,15 @@ import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
+import dagger.hilt.android.AndroidEntryPoint
+import kotlin.getValue
 import timber.log.Timber
 
 // This is modified from AI Sample Catalog, Gemini Live Todo example.
+@AndroidEntryPoint
 class GlassesActivity : ComponentActivity() {
+
+    private val viewModel: GlassesViewModel by viewModels()
 
     // -----------------------------------------------------------------------------------------------------------------
     // Permission Utilities.
@@ -72,7 +78,8 @@ class GlassesActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Timber.d("ZZZ: GlassesActivity.onCreate: savedInstanceState=$savedInstanceState")
+        Timber.d("ZZZ: GlassesActivity.onCreate: savedInstanceState=$savedInstanceState, " +
+            "viewModel=$viewModel")
 
         val allGranted = checkAllPermissionsGranted()
         isPermissionsGranted = allGranted

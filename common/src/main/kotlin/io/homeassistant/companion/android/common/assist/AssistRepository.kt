@@ -1,17 +1,16 @@
-package io.homeassistant.companion.android.assist
+package io.homeassistant.companion.android.common.assist
 
 import android.app.Application
 import android.content.pm.PackageManager
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.viewModelScope
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import io.homeassistant.companion.android.assist.AssistRepository.InputMode
-import io.homeassistant.companion.android.assist.ui.AssistMessage
+import io.homeassistant.companion.android.common.assist.AssistRepository.AssistEvent
+import io.homeassistant.companion.android.common.assist.AssistRepository.InputMode
 import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
@@ -29,31 +28,29 @@ import io.homeassistant.companion.android.util.UrlUtil
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.text.clear
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.select
 import timber.log.Timber
 
 // The following are copied from AssistViewModelBase.kt.
 // This is to make the core logic a singleton. We can't remove
 // AssistViewModelBase.kt since it is still used elsewhere.
 
-sealed interface AssistEvent {
-    sealed class Message(val message: String) : AssistEvent {
-        class Input(message: String) : Message(message)
-        class Output(message: String) : Message(message)
-        class Error(message: String) : Message(message)
-    }
-    class MessageChunk(val chunk: String) : AssistEvent
-}
-
 // This class represents the core logic and states of the Voice Assist.
 // It is going to be shared between multiple view models (e.g., one for mobile, another for
 // glasses).
 interface AssistRepository {
+
+    sealed interface AssistEvent {
+        sealed class Message(val message: String) : AssistEvent {
+            class Input(message: String) : Message(message)
+            class Output(message: String) : Message(message)
+            class Error(message: String) : Message(message)
+        }
+        class MessageChunk(val chunk: String) : AssistEvent
+    }
 
     enum class InputMode {
         // For when the user is expected to type their request.
