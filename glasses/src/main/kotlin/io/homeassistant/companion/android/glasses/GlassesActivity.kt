@@ -71,7 +71,7 @@ class GlassesActivity : ComponentActivity() {
     private fun setupContent() {
         setContent {
             GlimmerTheme {
-                RootScreen(isGranted = isPermissionsGranted)
+                RootScreen(isGranted = isPermissionsGranted, viewModel)
             }
         }
     }
@@ -93,9 +93,12 @@ class GlassesActivity : ComponentActivity() {
 }
 
 @Composable
-fun RootScreen(isGranted: Boolean, modifier: Modifier = Modifier) {
+fun RootScreen(isGranted: Boolean, viewModel: GlassesViewModel, modifier: Modifier = Modifier) {
     if (isGranted) {
-        VoiceAssistScreen(modifier = modifier)
+        VoiceAssistScreen(
+            conversation = viewModel.conversation,
+            modifier = modifier,
+        )
     } else {
         Text(
             text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.xr.glimmer.ListItem
 import androidx.xr.glimmer.Text
 import androidx.xr.glimmer.list.VerticalList
+import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.glasses.R as GlassesR
 import kotlin.math.min
 import timber.log.Timber
@@ -32,6 +33,7 @@ private val IconSize = 30.dp
 
 @Composable
 fun VoiceAssistScreen(
+    conversation: List<AssistMessage>,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -44,30 +46,21 @@ fun VoiceAssistScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        GlimmerScreenContent(
+        ChatListView(
+            conversation = conversation,
             onExit = onExit,
         )
     }
 }
 
-@Composable
-private fun GlimmerScreenContent(
-    onExit: () -> Unit
-) {
-    ChatListView(
-        chatStrings = listOf(),
-        onExit = onExit,
-    )
-}
-
 // Represents a list of ChatItems, and an exit button.
 @Composable
 private fun ChatListView(
-    chatStrings: List<String>,
+    conversation: List<AssistMessage>,
     onExit: () -> Unit,
 ) {
     // Number of chat strings plus the exit button.
-    val totalItems = chatStrings.size + 1
+    val totalItems = conversation.size + 1
     val listHeight = (min(totalItems, MaxItemsInList) * DefaultListItemHeight.value +
         min(totalItems - 1, MaxItemsInList) * ListItemSpacing.value)
 
@@ -76,8 +69,8 @@ private fun ChatListView(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(ListItemSpacing),
     ) {
-        items(chatStrings.size, key = { i -> chatStrings[i] }) { i ->
-            ChatItem(chatStrings[i])
+        items(conversation.size, key = { i -> conversation[i].hashCode() }) { i ->
+            ChatItem(conversation[i])
         }
 
         item {
@@ -102,11 +95,14 @@ private fun ChatListView(
 @Composable
 private fun ChatListViewPreview() {
     ChatListView(
-        chatStrings = listOf(
-            "It's 12:30pm",
-            // Just a random long string.
-            "You've correctly identified the fontSize parameter, but it requires a specific unit type, not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp (scale-independent pixels) unit.\n" +
-                "To fix this, you need to import sp and use it to define the font size."
+        conversation = listOf(
+            AssistMessage("What time is it?", true),
+            AssistMessage("It's 12:30pm", false),
+            AssistMessage("Say something", true),
+            AssistMessage("You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
+                "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
+                "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
+                "size.", false)
         ),
         onExit = {},
     )
@@ -114,10 +110,10 @@ private fun ChatListViewPreview() {
 
 // Represents a single chat conversation entry.
 @Composable
-private fun ChatItem(text : String) {
+private fun ChatItem(msg: AssistMessage) {
     ListItem {
         Text(
-            text = text,
+            text = msg.message,
             fontSize = 17.sp,
         )
     }
