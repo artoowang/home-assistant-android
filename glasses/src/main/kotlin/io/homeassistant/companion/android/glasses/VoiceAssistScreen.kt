@@ -9,9 +9,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -21,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.xr.glimmer.ListItem
 import androidx.xr.glimmer.Text
 import androidx.xr.glimmer.list.VerticalList
+import androidx.xr.glimmer.list.rememberListState
 import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.glasses.R as GlassesR
 import kotlin.math.min
@@ -59,34 +66,68 @@ private fun ChatListView(
     conversation: List<AssistMessage>,
     onExit: () -> Unit,
 ) {
+    val listState = rememberListState()
+    val focusRequesters = remember(conversation.size) {
+        Timber.d("ZZZ: focusRequesters created for size=${conversation.size}")
+        List(conversation.size) { FocusRequester() }
+    }
+    val bringIntoViewRequester = remember(conversation.size) {
+        Timber.d("ZZZ: bringIntoViewRequester created for size=${conversation.size}")
+        List(conversation.size) { BringIntoViewRequester() }
+    }
+
     // Number of chat strings plus the exit button.
     val totalItems = conversation.size + 1
     val listHeight = (min(totalItems, MaxItemsInList) * DefaultListItemHeight.value +
         min(totalItems - 1, MaxItemsInList) * ListItemSpacing.value)
 
+    if (conversation.isNotEmpty()) {
+        // Scroll to the last conversation item when it changes.
+        LaunchedEffect(conversation.size) {
+            Timber.d("ZZZ: LaunchedEffect(conversation.size=${conversation.size})")
+            val index = conversation.size - 1
+            listState.animateScrollToItem(index)
+        }
+//        LaunchedEffect(key1 = conversation.last().hashCode()) {
+//            val index = conversation.size - 1
+//            bringIntoViewRequester[index].bringIntoView()
+//            // focusRequesters[index].requestFocus()
+//            // Timber.d("ZZZ: animateScrollToItem($index)")
+//            // listState.animateScrollToItem(index)
+//        }
+    }
+
     VerticalList(
         modifier = Modifier.height(listHeight.dp),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(ListItemSpacing),
+        state = listState,
     ) {
-        items(conversation.size, key = { i -> conversation[i].hashCode() }) { i ->
-            ChatItem(conversation[i])
-        }
-
-        item {
-            ListItem(
-                onClick = onExit,
-                leadingIcon = {
-                    Image(
-                        painter = painterResource(id = GlassesR.drawable.ic_close),
-                        contentDescription = "Exit the app",
-                        modifier = Modifier.size(IconSize),
-                    )
-                }
-            ) {
-                Text(text = "Exit")
+        for ((i, msg) in conversation.withIndex()) {
+            Timber.d("ZZZ: i=$i, msg=$msg")
+            // TODO: We should use stable key so the list can animate individual messages correctly.
+            item {
+                ChatItem(msg, modifier = Modifier
+                    .focusRequester(focusRequesters[i])
+                    .bringIntoViewRequester(bringIntoViewRequester[i])
+                )
             }
         }
+
+//        item {
+//            ListItem(
+//                onClick = onExit,
+//                leadingIcon = {
+//                    Image(
+//                        painter = painterResource(id = GlassesR.drawable.ic_close),
+//                        contentDescription = "Exit the app",
+//                        modifier = Modifier.size(IconSize),
+//                    )
+//                }
+//            ) {
+//                Text(text = "Exit")
+//            }
+//        }
     }
 }
 
@@ -102,7 +143,8 @@ private fun ChatListViewPreview() {
             AssistMessage("You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
                 "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
                 "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
-                "size.", false)
+                "size.", false),
+            AssistMessage("Test", true),
         ),
         onExit = {},
     )
@@ -110,11 +152,12 @@ private fun ChatListViewPreview() {
 
 // Represents a single chat conversation entry.
 @Composable
-private fun ChatItem(msg: AssistMessage) {
+private fun ChatItem(msg: AssistMessage, modifier: Modifier) {
     ListItem {
         Text(
             text = msg.message,
             fontSize = 17.sp,
+            modifier = modifier,
         )
     }
 }
