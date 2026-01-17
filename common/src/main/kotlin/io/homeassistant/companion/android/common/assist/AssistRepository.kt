@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
+val ASSIST_FINISH_ACTION = "io.homeassistant.companion.android.ASSIST_FINISH"
+
 // The following are copied from AssistViewModelBase.kt.
 // This is to make the core logic a singleton. We can't remove
 // AssistViewModelBase.kt since it is still used elsewhere.

@@ -1,6 +1,10 @@
 package io.homeassistant.companion.android.glasses
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,6 +24,7 @@ import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import dagger.hilt.android.AndroidEntryPoint
+import io.homeassistant.companion.android.common.assist.ASSIST_FINISH_ACTION
 import kotlin.getValue
 import timber.log.Timber
 
@@ -29,13 +34,23 @@ class GlassesActivity : ComponentActivity() {
 
     private val viewModel: GlassesViewModel by viewModels()
 
+    // Receives intent from within the app, as well as external intents from ADB.
+    private val intentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Timber.d("ZZZ: onReceive: intent=$intent")
+            if (intent?.action == ASSIST_FINISH_ACTION) {
+                finish()
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
     // Permission Utilities.
 
     // Keeps track if the required permissions by glasses are granted.
     private var isPermissionsGranted by mutableStateOf(false)
     private val requiredPermissions = listOf(
-        Manifest.permission.RECORD_AUDIO
+        Manifest.permission.RECORD_AUDIO,
     )
 
     @OptIn(ExperimentalProjectedApi::class)
@@ -60,26 +75,28 @@ class GlassesActivity : ComponentActivity() {
             listOf(
                 ProjectedPermissionsRequestParams(
                     permissions = requiredPermissions,
-                    rationale = "We need microphone access to continue to the main experience."
-                )
-            )
+                    rationale = "We need microphone access to continue to the main experience.",
+                ),
+            ),
         )
     }
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    private fun setupContent() {
-        setContent {
-            GlimmerTheme {
-                RootScreen(isGranted = isPermissionsGranted, viewModel)
-            }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Timber.d("ZZZ: GlassesActivity.onCreate: savedInstanceState=$savedInstanceState, " +
-            "viewModel=$viewModel")
+        Timber.d(
+            "ZZZ: GlassesActivity.onCreate: savedInstanceState=$savedInstanceState, " +
+                "viewModel=$viewModel",
+        )
+
+        registerReceiver(
+            intentReceiver,
+            IntentFilter(ASSIST_FINISH_ACTION),
+            // This allows us to trigger the receiver with ADB command:
+            // adb shell am broadcast -a "<ASSIST_FINISH_ACTION>" -p "<package_name>"
+            RECEIVER_EXPORTED
+        )
 
         val allGranted = checkAllPermissionsGranted()
         isPermissionsGranted = allGranted
@@ -88,6 +105,25 @@ class GlassesActivity : ComponentActivity() {
 
         if (!allGranted) {
             requestPermissions()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Unregister the receiver first, so we don't receive the broadcast below.
+        unregisterReceiver(intentReceiver)
+        // Send a broadcast to finish AssistActivity
+        val intent = Intent(ASSIST_FINISH_ACTION).apply {
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun setupContent() {
+        setContent {
+            GlimmerTheme {
+                RootScreen(isGranted = isPermissionsGranted, viewModel)
+            }
         }
     }
 }

@@ -3,8 +3,10 @@ package io.homeassistant.companion.android.assist
 import android.Manifest
 import android.app.Activity
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -20,7 +22,7 @@ import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.BaseActivity
 import io.homeassistant.companion.android.assist.ui.AssistSheetView
-import io.homeassistant.companion.android.assist.AssistViewModel
+import io.homeassistant.companion.android.common.assist.ASSIST_FINISH_ACTION
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.launch.LaunchActivity
 import io.homeassistant.companion.android.glasses.GlassesActivity
@@ -83,9 +85,28 @@ class AssistActivity : BaseActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { viewModel.onPermissionResult(it) }
 
+    // Receives intent from within the app, as well as external intents from ADB.
+    private val intentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Timber.d("ZZZ: onReceive: intent=$intent")
+            if (intent?.action == ASSIST_FINISH_ACTION) {
+                finish()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Timber.d("ZZZ: AssistActivity.onCreate: savedInstanceState=$savedInstanceState")
+
+        registerReceiver(
+            intentReceiver,
+            IntentFilter(ASSIST_FINISH_ACTION),
+            // This allows us to trigger the receiver with ADB command:
+            // adb shell am broadcast -a "<ASSIST_FINISH_ACTION>" -p "<package_name>"
+            RECEIVER_EXPORTED
+        )
+
         updateShowWhenLocked()
 
         if (savedInstanceState == null) {
@@ -175,6 +196,14 @@ class AssistActivity : BaseActivity() {
         super.onDestroy()
         Timber.d("ZZZ: AssistActivity.onDestroy")
         viewModel.onDestroy()
+
+        // Unregister the receiver first, so we don't receive the broadcast below.
+        unregisterReceiver(intentReceiver)
+        // Send a broadcast to finish GlassesActivity
+        val intent = Intent(ASSIST_FINISH_ACTION).apply {
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
