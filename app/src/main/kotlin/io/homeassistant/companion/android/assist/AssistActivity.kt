@@ -150,6 +150,7 @@ class AssistActivity : BaseActivity() {
                     conversation = viewModel.conversation,
                     pipelines = viewModel.pipelines,
                     inputMode = viewModel.inputMode,
+                    lastRecordedLevel = viewModel.lastRecordedLevel,
                     fromFrontend = fromFrontend,
                     currentPipeline = viewModel.currentPipeline,
                     onSelectPipeline = viewModel::changePipeline,

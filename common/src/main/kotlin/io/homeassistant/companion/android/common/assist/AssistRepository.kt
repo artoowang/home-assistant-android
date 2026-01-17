@@ -82,6 +82,10 @@ interface AssistRepository {
     // Read-only state of the list of messages.
     val conversation: List<AssistMessage>
 
+    // The audio level of the last recorded voice input, normalized to a value between 0.0f and 1.0f. null if the mic is
+    // not currently recording.
+    val lastRecordedLevel: State<Float?>
+
     // Returns if the Home Assistant server is registered through the onboarding process.
     suspend fun isRegistered(): Boolean
 
@@ -149,6 +153,9 @@ class AssistRepositoryImpl @Inject constructor(
         application.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
     }
     override var hasPermission = false
+
+    private val _lastRecordedLevel = mutableStateOf<Float?>(null)
+    override val lastRecordedLevel = _lastRecordedLevel
 
     // -----------------------------------------------------------------------------------------------------------------
     // Conversation messages.
@@ -398,6 +405,24 @@ class AssistRepositoryImpl @Inject constructor(
         recorderQueue = mutableListOf()
         recorderJob = scope.launch {
             audioRecorder.audioBytes.collect {
+                var sumOfAbsValues = 0.0f
+                val sampleCount = it.size / 2
+                for (i in 0 until sampleCount) {
+                    val byteIndex = i * 2
+                    val lsb = it[byteIndex].toInt() and 0xFF
+                    val msb = it[byteIndex + 1].toInt()
+                    val sample = ((msb shl 8) or lsb).toShort()
+                    sumOfAbsValues += kotlin.math.abs(sample.toFloat())
+                }
+                val meanAbsValue = (sumOfAbsValues / sampleCount) / 65536.0f
+                _lastRecordedLevel.value = kotlin.math.sqrt(meanAbsValue)
+
+                // Audio data is handled in 2 different states:
+                // 1) Buffering state: When recording starts, we still need to wait for the Home Assistant server to
+                //    tell us where to stream the audio data. During this period, recorderQueue exists to buffer the
+                //    data.
+                // 2) Streaming State (recorderQueue is null): Once the server provides the info, we send all the
+                //    buffered audio from recorderQueue, and send new data directly to the server.
                 recorderQueue?.add(it) ?: sendVoiceData(scope, it)
             }
         }
@@ -453,6 +478,7 @@ class AssistRepositoryImpl @Inject constructor(
         } else {
             recorderQueue = null
         }
+        _lastRecordedLevel.value = null
 
         setMode(InputMode.VOICE_INACTIVE)
     }

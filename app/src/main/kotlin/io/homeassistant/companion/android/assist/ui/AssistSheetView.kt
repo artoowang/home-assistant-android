@@ -90,6 +90,7 @@ fun AssistSheetView(
     conversation: List<AssistMessage>,
     pipelines: List<AssistUiPipeline>,
     inputMode: AssistRepository.InputMode?,
+    lastRecordedLevel: Float?,
     currentPipeline: AssistUiPipeline?,
     fromFrontend: Boolean,
     onSelectPipeline: (Int, String) -> Unit,
@@ -152,6 +153,8 @@ fun AssistSheetView(
                     }
                     AssistSheetControls(
                         inputMode,
+                        // `lastRecordedLevel` should be available when the mic is active, but if not, fallback to 0.
+                        lastRecordedLevel ?: 0.0f,
                         onChangeInput,
                         onTextInput,
                         onMicrophoneInput,
@@ -239,6 +242,7 @@ fun AssistSheetHeader(
 @Composable
 fun AssistSheetControls(
     inputMode: AssistRepository.InputMode?,
+    lastRecordedLevel: Float,
     onChangeInput: () -> Unit,
     onTextInput: (String) -> Unit,
     onMicrophoneInput: () -> Unit,
@@ -313,15 +317,18 @@ fun AssistSheetControls(
         ) {
             val inputIsActive = inputMode == AssistRepository.InputMode.VOICE_ACTIVE
             if (inputIsActive) {
-                val transition = rememberInfiniteTransition()
-                val scale by transition.animateFloat(
-                    initialValue = 1f,
-                    targetValue = 1.2f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(600, easing = LinearEasing),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                )
+                // TODO: Remove the original animation if not needed.
+//                val transition = rememberInfiniteTransition()
+//                val scale by transition.animateFloat(
+//                    initialValue = 1f,
+//                    targetValue = 1.2f,
+//                    animationSpec = infiniteRepeatable(
+//                        animation = tween(600, easing = LinearEasing),
+//                        repeatMode = RepeatMode.Reverse,
+//                    ),
+//                )
+                // TODO: This allows the scale go all the way up to 2 (when level is 1.0). Might need to revisit.
+                val scale = 1f + lastRecordedLevel
                 Box(
                     modifier = Modifier
                         .size(48.dp)

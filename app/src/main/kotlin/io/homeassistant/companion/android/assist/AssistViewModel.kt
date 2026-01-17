@@ -53,6 +53,9 @@ class AssistViewModel @Inject constructor(
     var userCanManagePipelines by mutableStateOf(false)
         private set
 
+    val lastRecordedLevel: Float? by assistRepository.lastRecordedLevel
+
+
     // Returns if the Home Assistant server is registered with the onboarding.
     suspend fun isRegistered(): Boolean = assistRepository.isRegistered()
 

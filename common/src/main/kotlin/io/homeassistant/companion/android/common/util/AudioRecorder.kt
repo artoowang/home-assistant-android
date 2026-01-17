@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * Wrapper around [AudioRecord] providing pre-configured audio recording functionality.
@@ -59,12 +60,17 @@ class AudioRecorder(private val audioManager: AudioManager?) {
         if (recorder == null) {
             setupRecorder()
         }
-        val ready = recorder?.state == AudioRecord.STATE_INITIALIZED
+        val curRecorder = recorder
+        if (curRecorder == null) {
+            Timber.e("Recorder failed to create, cannot start recording.")
+            return false
+        }
+        val ready = curRecorder.state == AudioRecord.STATE_INITIALIZED
         if (!ready) return false
 
         if (recorderJob == null || recorderJob?.isActive == false) {
             requestFocus()
-            recorder?.startRecording()
+            curRecorder.startRecording()
             recorderJob = ioScope.launch {
                 val dataSize = minBufferSize()
                 while (isActive) {
@@ -73,16 +79,16 @@ class AudioRecorder(private val audioManager: AudioManager?) {
                     // finally send all pairs of two as one array to the flow.
                     // Split/conversion based on https://stackoverflow.com/a/47905328/4214819.
                     val data = ShortArray(dataSize)
-                    recorder?.read(data, 0, dataSize) // blocking!
-                    _audioBytes.emit(
-                        data
-                            .flatMap {
-                                val first = (it.toInt() and 0x00FF).toByte()
-                                val last = ((it.toInt() and 0xFF00) shr 8).toByte()
-                                listOf(first, last)
-                            }
-                            .toByteArray(),
-                    )
+                    val numSamples = curRecorder.read(data, 0, dataSize) // blocking!
+                    val byteArray = ByteArray(numSamples * 2)
+                    for (i in 0 until numSamples) {
+                        val sample = data[i]
+                        val byteIndex = i * 2
+                        // Manually place the two bytes for each short into the new array.
+                        byteArray[byteIndex] = (sample.toInt() and 0x00FF).toByte()
+                        byteArray[byteIndex + 1] = ((sample.toInt() and 0xFF00) shr 8).toByte()
+                    }
+                    _audioBytes.emit(byteArray)
                 }
             }
         }
