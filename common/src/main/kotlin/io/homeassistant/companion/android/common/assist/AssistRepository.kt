@@ -89,8 +89,11 @@ interface AssistRepository {
     // Returns if the Home Assistant server is registered through the onboarding process.
     suspend fun isRegistered(): Boolean
 
-    // Initializes the repository. This should be called when a voice assist session first started.
+    // Initializes the repository. This should be called once when a voice assist session first starts.
     fun init()
+
+    // Releases the repository. This should be called once when the voice assist sessions stops.
+    fun release(scope: CoroutineScope)
 
     // Clears pipeline related data.
     fun clearPipelineData()
@@ -178,9 +181,19 @@ class AssistRepositoryImpl @Inject constructor(
     override suspend fun isRegistered(): Boolean = serverManager.isRegistered()
 
     override fun init() {
+        Timber.d("ZZZ: init")
         assert(!audioRecorder.isRecording()) { "Audio recorder is already recording at init." }
         assert(recorderQueue == null) { "recorderQueue should be null at init." }
         assert(recorderJob == null) { "recorderJob should be null at init." }
+
+        audioRecorder.setupRecorder()
+    }
+
+    override fun release(scope: CoroutineScope) {
+        Timber.d("ZZZ: release")
+
+        stopRecording(scope)
+        stopPlayback()
 
         setMode(null)
         selectedServerId = ServerManager.SERVER_ID_ACTIVE
@@ -188,6 +201,8 @@ class AssistRepositoryImpl @Inject constructor(
         clearPipelineData()
         clearConversation()
         continueConversation.set(false)
+
+        audioRecorder.releaseRecorder()
     }
 
     override fun clearPipelineData() {

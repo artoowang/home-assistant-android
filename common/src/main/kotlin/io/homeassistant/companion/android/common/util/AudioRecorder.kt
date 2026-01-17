@@ -57,50 +57,49 @@ class AudioRecorder(private val audioManager: AudioManager?) {
      * @return `true` if the recorder started, or `false` if not
      */
     fun startRecording(): Boolean {
-        if (recorder == null) {
-            setupRecorder()
-        }
-        val curRecorder = recorder
-        if (curRecorder == null) {
-            Timber.e("Recorder failed to create, cannot start recording.")
-            return false
-        }
-        val ready = curRecorder.state == AudioRecord.STATE_INITIALIZED
-        if (!ready) return false
+        Timber.d("ZZZ: startRecording: recorder=$recorder, recorderJob=$recorderJob")
+        recorder?.let {
+            val ready = it.state == AudioRecord.STATE_INITIALIZED
+            if (!ready) return false
 
-        if (recorderJob == null || recorderJob?.isActive == false) {
-            requestFocus()
-            curRecorder.startRecording()
-            recorderJob = ioScope.launch {
-                val dataSize = minBufferSize()
-                while (isActive) {
-                    // We're recording in 16-bit as that is guaranteed to be supported but bytes are
-                    // 8-bit. So first read as shorts, then manually split them into two bytes, and
-                    // finally send all pairs of two as one array to the flow.
-                    // Split/conversion based on https://stackoverflow.com/a/47905328/4214819.
-                    val data = ShortArray(dataSize)
-                    val numSamples = curRecorder.read(data, 0, dataSize) // blocking!
-                    val byteArray = ByteArray(numSamples * 2)
-                    for (i in 0 until numSamples) {
-                        val sample = data[i]
-                        val byteIndex = i * 2
-                        // Manually place the two bytes for each short into the new array.
-                        byteArray[byteIndex] = (sample.toInt() and 0x00FF).toByte()
-                        byteArray[byteIndex + 1] = ((sample.toInt() and 0xFF00) shr 8).toByte()
+            if (recorderJob == null || recorderJob?.isActive == false) {
+                requestFocus()
+                it.startRecording()
+                recorderJob = ioScope.launch {
+                    val dataSize = minBufferSize()
+                    while (isActive) {
+                        // We're recording in 16-bit as that is guaranteed to be supported but bytes are
+                        // 8-bit. So first read as shorts, then manually split them into two bytes, and
+                        // finally send all pairs of two as one array to the flow.
+                        // Split/conversion based on https://stackoverflow.com/a/47905328/4214819.
+                        val data = ShortArray(dataSize)
+                        val numSamples = it.read(data, 0, dataSize) // blocking!
+                        val byteArray = ByteArray(numSamples * 2)
+                        for (i in 0 until numSamples) {
+                            val sample = data[i]
+                            val byteIndex = i * 2
+                            // Manually place the two bytes for each short into the new array.
+                            byteArray[byteIndex] = (sample.toInt() and 0x00FF).toByte()
+                            byteArray[byteIndex + 1] = ((sample.toInt() and 0xFF00) shr 8).toByte()
+                        }
+                        _audioBytes.emit(byteArray)
                     }
-                    _audioBytes.emit(byteArray)
+                    Timber.d("ZZZ: ioScope job is done.")
                 }
             }
+        } ?: run {
+            Timber.e("Recorder is not yet created.")
+            return false
         }
         return true
     }
 
     fun stopRecording() {
+        Timber.d("ZZZ: stopRecording: recorder=$recorder, recorderJob=$recorderJob")
         recorder?.stop()
         recorderJob?.cancel()
         recorderJob = null
         abandonFocus()
-        releaseRecorder()
     }
 
     fun isRecording(): Boolean {
@@ -108,22 +107,27 @@ class AudioRecorder(private val audioManager: AudioManager?) {
     }
 
     @SuppressLint("MissingPermission")
-    private fun setupRecorder() {
-        if (recorder != null) stopRecording()
+    fun setupRecorder() {
+        if (recorder != null) {
+            Timber.e("A recorder has already been created.")
+            return
+        }
 
         val bufferSize = minBufferSize() * 10
         recorder = AudioRecord(AUDIO_SOURCE, SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT, bufferSize)
+        Timber.d("ZZZ: setupRecorder: recorder=$recorder")
     }
 
-    private fun releaseRecorder() {
-        recorder?.release()
+    fun releaseRecorder() {
+        Timber.d("ZZZ: releaseRecorder: recorder=$recorder")
+        recorder?.release() ?: Timber.e("Recorder is already released.")
         recorder = null
     }
 
     private fun minBufferSize() = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
 
     private fun requestFocus() {
-        if (audioManager == null) return
+        check(audioManager != null) { "Audio manager is not available." }
         if (focusRequest == null) {
             focusRequest = AudioFocusRequestCompat.Builder(AudioManagerCompat.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).run {
                 setAudioAttributes(
@@ -142,9 +146,10 @@ class AudioRecorder(private val audioManager: AudioManager?) {
             try {
                 AudioManagerCompat.requestAudioFocus(audioManager, it)
             } catch (e: Exception) {
+                Timber.e(e, "Failed to request audio focus")
                 // We don't use the result / focus if available but if not still continue
             }
-        }
+        } ?: Timber.e("Failed to build focus request.")
     }
 
     private fun abandonFocus() {

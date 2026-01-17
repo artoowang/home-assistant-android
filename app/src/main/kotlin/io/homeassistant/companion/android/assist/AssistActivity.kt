@@ -139,6 +139,8 @@ class AssistActivity : BaseActivity() {
                 },
             )
 
+            // Make sure the GlassesActivity is launched AFTER AssistViewModel.onCreate(), which sets up the
+            // AudioRecord. Otherwise, AudioRecord may record silent audio without error.
             launchGlassesExperience(this)
         }
 

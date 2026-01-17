@@ -85,10 +85,7 @@ class GlassesActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Timber.d(
-            "ZZZ: GlassesActivity.onCreate: savedInstanceState=$savedInstanceState, " +
-                "viewModel=$viewModel",
-        )
+        Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState, viewModel=$viewModel")
 
         registerReceiver(
             intentReceiver,
@@ -108,8 +105,19 @@ class GlassesActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        Timber.d("ZZZ: onResume")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Timber.d("ZZZ: onPause")
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        Timber.d("ZZZ: onDestroy")
         // Unregister the receiver first, so we don't receive the broadcast below.
         unregisterReceiver(intentReceiver)
         // Send a broadcast to finish AssistActivity

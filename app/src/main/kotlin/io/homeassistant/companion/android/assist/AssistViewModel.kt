@@ -60,15 +60,17 @@ class AssistViewModel @Inject constructor(
     suspend fun isRegistered(): Boolean = assistRepository.isRegistered()
 
     fun onCreate(hasPermission: Boolean, serverId: Int?, pipelineId: String?, startListening: Boolean?) {
-        viewModelScope.launch {
-            assistRepository.init()
-            assistRepository.hasPermission = hasPermission
-            serverId?.let {
-                filteredServerId = serverId
-                assistRepository.selectedServerId = serverId
-            }
-            startListening?.let { recorderAutoStart = it }
+        // Set up the repository synchronously (instead of the in coroutine), so we can make sure they are done before
+        // this method returns.
+        assistRepository.init()
+        assistRepository.hasPermission = hasPermission
+        serverId?.let {
+            filteredServerId = serverId
+            assistRepository.selectedServerId = serverId
+        }
+        startListening?.let { recorderAutoStart = it }
 
+        viewModelScope.launch {
             if (!serverManager.isRegistered()) {
                 assistRepository.markBlocked(application.getString(commonR.string.not_registered))
                 return@launch
@@ -225,6 +227,7 @@ class AssistViewModel @Inject constructor(
      * Start/stop microphone input for Assist, depending on the current state.
      */
     fun onMicrophoneInput() {
+        Timber.d("ZZZ: onMicrophoneInput")
         if (!assistRepository.hasPermission) {
             requestPermission?.let { it() }
             return
@@ -280,12 +283,12 @@ class AssistViewModel @Inject constructor(
 
     fun onPause() {
         requestPermission = null
+        // TODO: Should we do this? It seems this will cause the recording to stop when rotating the screen?
         assistRepository.stopRecording(viewModelScope)
     }
 
     fun onDestroy() {
         requestPermission = null
-        assistRepository.stopRecording(viewModelScope)
-        assistRepository.stopPlayback()
+        assistRepository.release(viewModelScope)
     }
 }
