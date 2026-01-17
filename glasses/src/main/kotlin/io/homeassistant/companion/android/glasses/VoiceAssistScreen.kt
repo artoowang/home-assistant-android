@@ -1,35 +1,28 @@
 package io.homeassistant.companion.android.glasses
 
 import android.app.Activity
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.ListItem
 import androidx.xr.glimmer.Text
 import androidx.xr.glimmer.list.VerticalList
 import androidx.xr.glimmer.list.rememberListState
 import io.homeassistant.companion.android.common.assist.AssistMessage
-import io.homeassistant.companion.android.glasses.R as GlassesR
 import kotlin.math.min
 import timber.log.Timber
 
@@ -122,27 +115,42 @@ private fun ChatListView(
 private fun ChatListViewPreview() {
     ChatListView(
         conversation = listOf(
-            AssistMessage("What time is it?", true),
-            AssistMessage("It's 12:30pm", false),
-            AssistMessage("Say something", true),
+            AssistMessage("What time is it?", isInput = true),
+            AssistMessage("It's 12:30pm", isInput = false),
+            AssistMessage("Say something", isInput = true),
             AssistMessage("You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
                 "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
                 "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
-                "size.", false),
+                "size.", isInput = false),
+            AssistMessage("...", isInput = true),
         ),
         onExit = {},
     )
 }
 
-// Represents a single chat conversation entry.
+// Represents a single chat conversation entry. `modifier` is used for ListItem.
 @Composable
 private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
-    ListItem(
-        modifier = modifier,
+    val textColor = when {
+        msg.isError -> GlimmerTheme.colors.negative
+        msg.isInput -> GlimmerTheme.colors.outline
+        else -> Color.Unspecified
+    }
+
+    Box(
+        modifier = modifier.fillMaxSize(),
     ) {
-        Text(
-            text = msg.message,
-            fontSize = 17.sp,
-        )
+        ListItem(
+            modifier = modifier
+                .fillMaxWidth(0.75f)
+                .align(if (msg.isInput) Alignment.CenterEnd else Alignment.CenterStart)
+        ) {
+            Text(
+                text = msg.message,
+                color = textColor,
+                style = GlimmerTheme.typography.bodySmall,
+                fontSize = 17.sp,
+            )
+        }
     }
 }
