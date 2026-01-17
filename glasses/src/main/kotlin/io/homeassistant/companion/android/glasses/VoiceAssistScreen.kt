@@ -35,7 +35,9 @@ import timber.log.Timber
 
 private val DefaultListItemHeight = 64.dp
 private val ListItemSpacing = 12.dp
-private const val MaxItemsInList = 4
+// Lists should only show three items or less within a view.
+// https://developer.android.com/develop/xr/jetpack-xr-sdk/jetpack-compose-glimmer/lists
+private const val MaxItemsInList = 3
 private val IconSize = 30.dp
 
 @Composable
@@ -66,15 +68,8 @@ private fun ChatListView(
     conversation: List<AssistMessage>,
     onExit: () -> Unit,
 ) {
+    // Used to scroll list. This is "remembered" so it persists across recompositions.
     val listState = rememberListState()
-    val focusRequesters = remember(conversation.size) {
-        Timber.d("ZZZ: focusRequesters created for size=${conversation.size}")
-        List(conversation.size) { FocusRequester() }
-    }
-    val bringIntoViewRequester = remember(conversation.size) {
-        Timber.d("ZZZ: bringIntoViewRequester created for size=${conversation.size}")
-        List(conversation.size) { BringIntoViewRequester() }
-    }
 
     // Number of chat strings plus the exit button.
     val totalItems = conversation.size + 1
@@ -83,18 +78,10 @@ private fun ChatListView(
 
     if (conversation.isNotEmpty()) {
         // Scroll to the last conversation item when it changes.
-        LaunchedEffect(conversation.size) {
-            Timber.d("ZZZ: LaunchedEffect(conversation.size=${conversation.size})")
-            val index = conversation.size - 1
-            listState.animateScrollToItem(index)
+        LaunchedEffect(conversation.last().hashCode()) {
+            // Scroll to the last item in the conversation.
+            listState.animateScrollToItem(conversation.size - 1)
         }
-//        LaunchedEffect(key1 = conversation.last().hashCode()) {
-//            val index = conversation.size - 1
-//            bringIntoViewRequester[index].bringIntoView()
-//            // focusRequesters[index].requestFocus()
-//            // Timber.d("ZZZ: animateScrollToItem($index)")
-//            // listState.animateScrollToItem(index)
-//        }
     }
 
     VerticalList(
@@ -103,31 +90,29 @@ private fun ChatListView(
         verticalArrangement = Arrangement.spacedBy(ListItemSpacing),
         state = listState,
     ) {
-        for ((i, msg) in conversation.withIndex()) {
-            Timber.d("ZZZ: i=$i, msg=$msg")
+        for (msg in conversation) {
             // TODO: We should use stable key so the list can animate individual messages correctly.
             item {
-                ChatItem(msg, modifier = Modifier
-                    .focusRequester(focusRequesters[i])
-                    .bringIntoViewRequester(bringIntoViewRequester[i])
-                )
+                ChatItem(msg)
             }
         }
 
-//        item {
-//            ListItem(
-//                onClick = onExit,
-//                leadingIcon = {
-//                    Image(
-//                        painter = painterResource(id = GlassesR.drawable.ic_close),
-//                        contentDescription = "Exit the app",
-//                        modifier = Modifier.size(IconSize),
-//                    )
-//                }
-//            ) {
-//                Text(text = "Exit")
-//            }
-//        }
+        // TODO: Disabled exit button. For unknown reason, when adding this button the animateScrollToItem() starts to
+        // behave unpredictably.
+        // item {
+        //     ListItem(
+        //         onClick = onExit,
+        //         leadingIcon = {
+        //             Image(
+        //                 painter = painterResource(id = GlassesR.drawable.ic_close),
+        //                 contentDescription = "Exit the app",
+        //                 modifier = Modifier.size(IconSize),
+        //             )
+        //         }
+        //     ) {
+        //         Text(text = "Exit")
+        //     }
+        // }
     }
 }
 
@@ -144,7 +129,6 @@ private fun ChatListViewPreview() {
                 "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
                 "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
                 "size.", false),
-            AssistMessage("Test", true),
         ),
         onExit = {},
     )
@@ -152,12 +136,13 @@ private fun ChatListViewPreview() {
 
 // Represents a single chat conversation entry.
 @Composable
-private fun ChatItem(msg: AssistMessage, modifier: Modifier) {
-    ListItem {
+private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
+    ListItem(
+        modifier = modifier,
+    ) {
         Text(
             text = msg.message,
             fontSize = 17.sp,
-            modifier = modifier,
         )
     }
 }
