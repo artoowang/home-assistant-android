@@ -68,7 +68,7 @@ interface AssistRepository {
         BLOCKED,
     }
 
-    // Input mode state for Composable to react. null means the repository is not ready yet.
+    // Input mode state for Composable to react. null means the assist is not yet started.
     val inputMode: State<InputMode?>
 
     // The ID of the selected Home Assistant server.

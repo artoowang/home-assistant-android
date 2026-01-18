@@ -11,5 +11,9 @@ class GlassesViewModel @Inject constructor(
     private val assistRepository: AssistRepository,
 ) : ViewModel() {
 
+    // The current input mode, or null if the assist is not yet started.
+    val inputMode = assistRepository.inputMode
+
+    // The current list of messages in the conversation.
     val conversation: List<AssistMessage> = assistRepository.conversation
 }

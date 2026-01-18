@@ -1,6 +1,7 @@
 package io.homeassistant.companion.android.glasses
 
 import android.Manifest
+import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,38 +12,57 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import androidx.xr.glimmer.GlimmerTheme
+import androidx.xr.projected.ProjectedContext
 import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.common.assist.ASSIST_FINISH_ACTION
+import io.homeassistant.companion.android.common.assist.AssistMessage
+import io.homeassistant.companion.android.common.assist.AssistRepository
 import kotlin.getValue
 import timber.log.Timber
+
+@OptIn(ExperimentalProjectedApi::class)
+fun launchGlassesExperience(activity: Activity) {
+    Timber.d("ZZZ: Attempting to launch GlassesActivity on connected device...")
+
+    try {
+        val projectedContext = ProjectedContext.createProjectedDeviceContext(activity)
+        val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
+        val intent = Intent(activity, GlassesActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        activity.startActivity(intent, options.toBundle())
+        Timber.i("Successfully sent launch intent to the projected device.")
+
+    } catch (e: IllegalStateException) {
+        Timber.e("Projected device not ready: ${e.message}")
+    } catch (e: Exception) {
+        Timber.e("Error during launch: ${e.message}")
+    }
+}
 
 // This is modified from AI Sample Catalog, Gemini Live Todo example.
 @AndroidEntryPoint
 class GlassesActivity : ComponentActivity() {
 
     private val viewModel: GlassesViewModel by viewModels()
-
-    // Receives intent from within the app, as well as external intents from ADB.
-    private val intentReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            Timber.d("ZZZ: onReceive: intent=$intent")
-            if (intent?.action == ASSIST_FINISH_ACTION) {
-                finish()
-            }
-        }
-    }
 
     // -----------------------------------------------------------------------------------------------------------------
     // Permission Utilities.
@@ -87,14 +107,6 @@ class GlassesActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState, viewModel=$viewModel")
 
-        registerReceiver(
-            intentReceiver,
-            IntentFilter(ASSIST_FINISH_ACTION),
-            // This allows us to trigger the receiver with ADB command:
-            // adb shell am broadcast -a "<ASSIST_FINISH_ACTION>" -p "<package_name>"
-            RECEIVER_EXPORTED
-        )
-
         val allGranted = checkAllPermissionsGranted()
         isPermissionsGranted = allGranted
 
@@ -118,8 +130,6 @@ class GlassesActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Timber.d("ZZZ: onDestroy")
-        // Unregister the receiver first, so we don't receive the broadcast below.
-        unregisterReceiver(intentReceiver)
         // Send a broadcast to finish AssistActivity
         val intent = Intent(ASSIST_FINISH_ACTION).apply {
             setPackage(packageName)
@@ -130,24 +140,62 @@ class GlassesActivity : ComponentActivity() {
     private fun setupContent() {
         setContent {
             GlimmerTheme {
-                RootScreen(isGranted = isPermissionsGranted, viewModel)
+                when {
+                    isPermissionsGranted -> RootScreen(
+                        inputMode = viewModel.inputMode.value,
+                        conversation = viewModel.conversation,
+                    )
+
+                    else -> PermissionNotice()
+                }
             }
         }
     }
 }
 
 @Composable
-fun RootScreen(isGranted: Boolean, viewModel: GlassesViewModel, modifier: Modifier = Modifier) {
-    if (isGranted) {
-        VoiceAssistScreen(
-            conversation = viewModel.conversation,
-            modifier = modifier,
-        )
-    } else {
+fun PermissionNotice() {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
         Text(
             text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",
             color = Color(0xFFFF0000),
-            modifier = modifier,
         )
     }
+}
+
+@Preview
+@Composable
+private fun PermissionNoticePreview() {
+    PermissionNotice()
+}
+
+@Composable
+fun RootScreen(inputMode: AssistRepository.InputMode?, conversation: List<AssistMessage>) {
+    when {
+        inputMode != null -> VoiceAssistScreen(
+                conversation = conversation,
+            )
+
+        // When input mode is null (not initialized), show empty screen but tappable.
+        else -> Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {}
+    }
+}
+
+@Preview
+@Composable
+private fun NullInputMode() {
+    RootScreen(
+        inputMode = null,
+        conversation = listOf(),
+    )
 }

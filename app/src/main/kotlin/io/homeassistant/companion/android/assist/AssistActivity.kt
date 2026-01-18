@@ -1,7 +1,6 @@
 package io.homeassistant.companion.android.assist
 
 import android.Manifest
-import android.app.Activity
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -17,40 +16,17 @@ import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.lifecycleScope
-import androidx.xr.projected.ProjectedContext
-import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.BaseActivity
 import io.homeassistant.companion.android.assist.ui.AssistSheetView
 import io.homeassistant.companion.android.common.assist.ASSIST_FINISH_ACTION
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.launch.LaunchActivity
-import io.homeassistant.companion.android.glasses.GlassesActivity
+import io.homeassistant.companion.android.glasses.launchGlassesExperience
 import io.homeassistant.companion.android.util.compose.HomeAssistantAppTheme
 import io.homeassistant.companion.android.webview.WebViewActivity
 import kotlinx.coroutines.launch
 import timber.log.Timber
-
-@OptIn(ExperimentalProjectedApi::class)
-private fun launchGlassesExperience(activity: Activity) {
-    Timber.d("ZZZ: Attempting to launch GlassesActivity on connected device...")
-
-    try {
-        val projectedContext = ProjectedContext.createProjectedDeviceContext(activity)
-        val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
-        val intent = Intent(activity, GlassesActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        activity.startActivity(intent, options.toBundle())
-        Timber.i("Successfully sent launch intent to the projected device.")
-
-    } catch (e: IllegalStateException) {
-        Timber.e("Projected device not ready: ${e.message}")
-    } catch (e: Exception) {
-        Timber.e("Error during launch: ${e.message}")
-    }
-}
 
 @AndroidEntryPoint
 class AssistActivity : BaseActivity() {
@@ -99,6 +75,8 @@ class AssistActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         Timber.d("ZZZ: AssistActivity.onCreate: savedInstanceState=$savedInstanceState")
 
+        // TODO: Instead of using intent to close another activity, maybe the correct thing to do is both activities
+        // should monitor the AssistRepository and finish() themselves?
         registerReceiver(
             intentReceiver,
             IntentFilter(ASSIST_FINISH_ACTION),
@@ -141,6 +119,9 @@ class AssistActivity : BaseActivity() {
 
             // Make sure the GlassesActivity is launched AFTER AssistViewModel.onCreate(), which sets up the
             // AudioRecord. Otherwise, AudioRecord may record silent audio without error.
+            // TODO: Weird, after I launch GlassesActivity in LaunchActivity, now whether I start the intent here or not
+            // no longer matters - the mic records fine in either case. We should still start the GA again to make sure
+            // it shows up though, but we might want to update the comments above.
             launchGlassesExperience(this)
         }
 
@@ -200,13 +181,7 @@ class AssistActivity : BaseActivity() {
         Timber.d("ZZZ: AssistActivity.onDestroy")
         viewModel.onDestroy()
 
-        // Unregister the receiver first, so we don't receive the broadcast below.
         unregisterReceiver(intentReceiver)
-        // Send a broadcast to finish GlassesActivity
-        val intent = Intent(ASSIST_FINISH_ACTION).apply {
-            setPackage(packageName)
-        }
-        sendBroadcast(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
