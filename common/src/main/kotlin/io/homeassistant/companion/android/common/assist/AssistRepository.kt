@@ -34,8 +34,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
-val ASSIST_FINISH_ACTION = "io.homeassistant.companion.android.ASSIST_FINISH"
-
 // The following are copied from AssistViewModelBase.kt.
 // This is to make the core logic a singleton. We can't remove
 // AssistViewModelBase.kt since it is still used elsewhere.
@@ -89,10 +87,12 @@ interface AssistRepository {
     // Returns if the Home Assistant server is registered through the onboarding process.
     suspend fun isRegistered(): Boolean
 
-    // Initializes the repository. This should be called once when a voice assist session first starts.
+    // Initializes the repository. This should be called when a voice assist session first starts. It can happen through
+    // multiple UIs (e.g., Assist sheet on the mobile, or UI from the glasses), and repeated request is a no-op.
     fun init()
 
-    // Releases the repository. This should be called once when the voice assist sessions stops.
+    // Releases the repository. This should be called when the voice assist sessions stops. It can happen through
+    // multiple UIs (e.g., Assist sheet on the mobile, or UI from the glasses), and repeated request is a no-op.
     fun release(scope: CoroutineScope)
 
     // Clears pipeline related data.
@@ -182,19 +182,33 @@ class AssistRepositoryImpl @Inject constructor(
 
     override fun init() {
         Timber.d("ZZZ: init")
+        if (_inputMode.value != null) {
+            Timber.i("Assist has already initialized. Ignored re-initialization.")
+            return
+        }
+
         assert(!audioRecorder.isRecording()) { "Audio recorder is already recording at init." }
         assert(recorderQueue == null) { "recorderQueue should be null at init." }
         assert(recorderJob == null) { "recorderJob should be null at init." }
 
         audioRecorder.setupRecorder()
+        // Makes the mode leaves null to indicate the repository has initialized.
+        // TODO: We probably want another state to indicate the assist has started, but neither text nor voice is chosen
+        // yet.
+        setMode(InputMode.TEXT)
     }
 
     override fun release(scope: CoroutineScope) {
         Timber.d("ZZZ: release")
+        if (_inputMode.value == null) {
+            Timber.i("Assist has already released. Ignored re-release.")
+            return
+        }
 
         stopRecording(scope)
         stopPlayback()
 
+        // Returns to null input model to indicate the repository has been released.
         setMode(null)
         selectedServerId = ServerManager.SERVER_ID_ACTIVE
         hasPermission = false

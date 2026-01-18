@@ -1,10 +1,12 @@
 package io.homeassistant.companion.android.glasses
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.common.assist.AssistRepository
 import javax.inject.Inject
+import timber.log.Timber
 
 @HiltViewModel
 class GlassesViewModel @Inject constructor(
@@ -16,4 +18,10 @@ class GlassesViewModel @Inject constructor(
 
     // The current list of messages in the conversation.
     val conversation: List<AssistMessage> = assistRepository.conversation
+
+    // Stops the assist session.
+    fun stopAssist() {
+        Timber.d("ZZZ: stopAssist")
+        assistRepository.release(viewModelScope)
+    }
 }

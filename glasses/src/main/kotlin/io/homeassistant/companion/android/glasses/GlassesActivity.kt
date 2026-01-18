@@ -2,10 +2,7 @@ package io.homeassistant.companion.android.glasses
 
 import android.Manifest
 import android.app.Activity
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -31,7 +28,6 @@ import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import dagger.hilt.android.AndroidEntryPoint
-import io.homeassistant.companion.android.common.assist.ASSIST_FINISH_ACTION
 import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.common.assist.AssistRepository
 import kotlin.getValue
@@ -130,11 +126,7 @@ class GlassesActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Timber.d("ZZZ: onDestroy")
-        // Send a broadcast to finish AssistActivity
-        val intent = Intent(ASSIST_FINISH_ACTION).apply {
-            setPackage(packageName)
-        }
-        sendBroadcast(intent)
+        viewModel.stopAssist()
     }
 
     private fun setupContent() {

@@ -2,10 +2,8 @@ package io.homeassistant.companion.android.assist
 
 import android.Manifest
 import android.app.KeyguardManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -13,18 +11,20 @@ import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.BaseActivity
 import io.homeassistant.companion.android.assist.ui.AssistSheetView
-import io.homeassistant.companion.android.common.assist.ASSIST_FINISH_ACTION
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.launch.LaunchActivity
 import io.homeassistant.companion.android.glasses.launchGlassesExperience
 import io.homeassistant.companion.android.util.compose.HomeAssistantAppTheme
 import io.homeassistant.companion.android.webview.WebViewActivity
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -61,29 +61,9 @@ class AssistActivity : BaseActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { viewModel.onPermissionResult(it) }
 
-    // Receives intent from within the app, as well as external intents from ADB.
-    private val intentReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            Timber.d("ZZZ: onReceive: intent=$intent")
-            if (intent?.action == ASSIST_FINISH_ACTION) {
-                finish()
-            }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Timber.d("ZZZ: AssistActivity.onCreate: savedInstanceState=$savedInstanceState")
-
-        // TODO: Instead of using intent to close another activity, maybe the correct thing to do is both activities
-        // should monitor the AssistRepository and finish() themselves?
-        registerReceiver(
-            intentReceiver,
-            IntentFilter(ASSIST_FINISH_ACTION),
-            // This allows us to trigger the receiver with ADB command:
-            // adb shell am broadcast -a "<ASSIST_FINISH_ACTION>" -p "<package_name>"
-            RECEIVER_EXPORTED
-        )
 
         updateShowWhenLocked()
 
@@ -128,6 +108,18 @@ class AssistActivity : BaseActivity() {
         val fromFrontend = intent.getBooleanExtra(EXTRA_FROM_FRONTEND, false)
 
         setContent {
+            // Starts a coroutine that monitors the input mode. When it becomes null, it means the sheet is closing,
+            // so we finish the activity. The input mode signal is backed by State<InputMode?>, which automatically
+            // de-duplicate repeated signals, so we won't get repeated it == null signals.
+            LaunchedEffect(Unit) {
+                snapshotFlow { viewModel.inputMode }
+                    .filter { it == null }
+                    .collect {
+                        Timber.d("ZZZ: Input mode is null, closing activity.")
+                        finish()
+                    }
+            }
+
             HomeAssistantAppTheme {
                 AssistSheetView(
                     conversation = viewModel.conversation,
@@ -180,8 +172,6 @@ class AssistActivity : BaseActivity() {
         super.onDestroy()
         Timber.d("ZZZ: AssistActivity.onDestroy")
         viewModel.onDestroy()
-
-        unregisterReceiver(intentReceiver)
     }
 
     override fun onNewIntent(intent: Intent) {
