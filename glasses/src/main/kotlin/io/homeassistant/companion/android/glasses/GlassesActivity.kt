@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -136,6 +137,7 @@ class GlassesActivity : ComponentActivity() {
                     isPermissionsGranted -> RootScreen(
                         inputMode = viewModel.inputMode.value,
                         conversation = viewModel.conversation,
+                        onStartAssist = { viewModel.startAssistAndRecording() }
                     )
 
                     else -> PermissionNotice()
@@ -167,7 +169,11 @@ private fun PermissionNoticePreview() {
 }
 
 @Composable
-fun RootScreen(inputMode: AssistRepository.InputMode?, conversation: List<AssistMessage>) {
+fun RootScreen(
+    inputMode: AssistRepository.InputMode?,
+    conversation: List<AssistMessage>,
+    onStartAssist: () -> Unit,
+) {
     when {
         inputMode != null -> VoiceAssistScreen(
                 conversation = conversation,
@@ -179,6 +185,9 @@ fun RootScreen(inputMode: AssistRepository.InputMode?, conversation: List<Assist
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
+                .clickable {
+                    onStartAssist()
+                }
         ) {}
     }
 }
@@ -189,5 +198,6 @@ private fun NullInputMode() {
     RootScreen(
         inputMode = null,
         conversation = listOf(),
+        onStartAssist = {}
     )
 }
