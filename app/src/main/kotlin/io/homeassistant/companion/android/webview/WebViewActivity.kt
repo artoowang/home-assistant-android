@@ -1157,14 +1157,16 @@ class WebViewActivity :
 
             checkAndWarnForDisabledLocation()
             changeLog.showChangeLog(this@WebViewActivity, false)
+
+            // Launch GlassesActivity at each resume.
+            // TODO: Not sure why, but doing this in this coroutine (instead of at the end of onResume()) prevents the
+            // WebViewActivity gets stuck at black screen until I tap the screen.
+            launchGlassesExperience(this@WebViewActivity)
         }
 
         if (loadedUrl != null) {
             waitForConnection()
         }
-
-        // Launch GlassesActivity at each resume.
-        launchGlassesExperience(this)
     }
 
     override fun onStop() {

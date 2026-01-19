@@ -1,7 +1,7 @@
 package io.homeassistant.companion.android.glasses
 
 import android.Manifest
-import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -38,17 +38,17 @@ import kotlin.getValue
 import timber.log.Timber
 
 @OptIn(ExperimentalProjectedApi::class)
-fun launchGlassesExperience(activity: Activity) {
+fun launchGlassesExperience(context: Context) {
     Timber.d("ZZZ: Attempting to launch GlassesActivity on connected device...")
 
     try {
-        val projectedContext = ProjectedContext.createProjectedDeviceContext(activity)
+        val projectedContext = ProjectedContext.createProjectedDeviceContext(context)
         val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
-        val intent = Intent(activity, GlassesActivity::class.java).apply {
+        val intent = Intent(context, GlassesActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        activity.startActivity(intent, options.toBundle())
+        context.startActivity(intent, options.toBundle())
         Timber.i("Successfully sent launch intent to the projected device.")
 
     } catch (e: IllegalStateException) {
