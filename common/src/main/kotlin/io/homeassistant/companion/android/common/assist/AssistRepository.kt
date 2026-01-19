@@ -85,6 +85,13 @@ interface AssistRepository {
     // Returns if the Home Assistant server is registered through the onboarding process.
     suspend fun isRegistered(): Boolean
 
+    // Creates the AudioRecord. This needs to be called once at the app start, and the AudioRecord will last the entire
+    // lifespan of the app.
+    // TODO: Currently we need to explicitly create AudioRecord before GlassesActivity is launched, or otherwise the
+    // microphone records just silence (and without any warning or error). This is likely a bug, and once that is fixed,
+    // it is better to have init() to create / release() to destroy AudioRecord to save resources.
+    fun setupRecorder()
+
     // Initializes the repository. This should be called when a voice assist session first starts. It can happen through
     // multiple UIs (e.g., Assist sheet on the mobile, or UI from the glasses), and repeated request is a no-op.
     fun init()
@@ -177,6 +184,10 @@ class AssistRepositoryImpl @Inject constructor(
 
     override suspend fun isRegistered(): Boolean = serverManager.isRegistered()
 
+    override fun setupRecorder() {
+        audioRecorder.setupRecorder()
+    }
+
     override fun init() {
         Timber.d("ZZZ: init")
         if (_inputMode.value != null) {
@@ -188,7 +199,6 @@ class AssistRepositoryImpl @Inject constructor(
         assert(recorderQueue == null) { "recorderQueue should be null at init." }
         assert(recorderJob == null) { "recorderJob should be null at init." }
 
-        audioRecorder.setupRecorder()
         // Makes the mode leaves null to indicate the repository has initialized.
         // TODO: We probably want another state to indicate the assist has started, but neither text nor voice is chosen
         // yet.
@@ -211,8 +221,6 @@ class AssistRepositoryImpl @Inject constructor(
         clearPipelineData()
         clearConversation()
         continueConversation.set(false)
-
-        audioRecorder.releaseRecorder()
     }
 
     override fun clearPipelineData() {
