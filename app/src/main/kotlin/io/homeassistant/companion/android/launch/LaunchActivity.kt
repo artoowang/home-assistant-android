@@ -15,7 +15,6 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.withCreationCallback
 import io.homeassistant.companion.android.common.compose.theme.HATheme
-import io.homeassistant.companion.android.glasses.launchGlassesExperience
 import io.homeassistant.companion.android.util.compose.HAApp
 import io.homeassistant.companion.android.util.enableEdgeToEdgeCompat
 import kotlinx.parcelize.Parcelize
@@ -106,11 +105,6 @@ class LaunchActivity : AppCompatActivity() {
                 }
             }
         }
-
-        // TODO
-        // Make sure the GlassesActivity is launched AFTER AssistViewModel.onCreate(), which sets up the
-        // AudioRecord. Otherwise, AudioRecord may record silent audio without error.
-        launchGlassesExperience(this)
     }
 
     override fun onPause() {

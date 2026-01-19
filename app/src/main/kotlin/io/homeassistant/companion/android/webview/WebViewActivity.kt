@@ -108,6 +108,7 @@ import io.homeassistant.companion.android.database.authentication.Authentication
 import io.homeassistant.companion.android.database.authentication.AuthenticationDao
 import io.homeassistant.companion.android.database.server.ServerConnectionInfo
 import io.homeassistant.companion.android.databinding.DialogAuthenticationBinding
+import io.homeassistant.companion.android.glasses.launchGlassesExperience
 import io.homeassistant.companion.android.improv.ui.ImprovPermissionDialog
 import io.homeassistant.companion.android.improv.ui.ImprovSetupDialog
 import io.homeassistant.companion.android.launch.LaunchActivity
@@ -305,6 +306,8 @@ class WebViewActivity :
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState")
+
         if (
             intent.extras?.containsKey(EXTRA_SHOW_WHEN_LOCKED) == true &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1
@@ -1103,6 +1106,8 @@ class WebViewActivity :
     }
 
     override fun onResume() {
+        Timber.d("ZZZ: onResume")
+
         super.onResume()
         lifecycleScope.launch {
             // if null it means that the settings were not yet read so we should not recreate
@@ -1149,6 +1154,9 @@ class WebViewActivity :
         if (loadedUrl != null) {
             waitForConnection()
         }
+
+        // Launch GlassesActivity at each resume.
+        launchGlassesExperience(this)
     }
 
     override fun onStop() {
