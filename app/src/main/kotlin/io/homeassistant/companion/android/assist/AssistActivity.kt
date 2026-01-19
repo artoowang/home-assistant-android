@@ -47,6 +47,8 @@ class AssistActivity : BaseActivity() {
             startListening: Boolean = true,
             fromFrontend: Boolean = true,
         ): Intent {
+            Timber.d("ZZZ: newInstance: serverId=$serverId, pipelineId=$pipelineId, startListening=$startListening, " +
+                "fromFrontend=$fromFrontend")
             return Intent(context, AssistActivity::class.java).apply {
                 putExtra(EXTRA_SERVER, serverId)
                 putExtra(EXTRA_PIPELINE, pipelineId)

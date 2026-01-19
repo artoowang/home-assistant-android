@@ -55,6 +55,8 @@ class AssistViewModel @Inject constructor(
 
     val lastRecordedLevel: Float? by assistRepository.lastRecordedLevel
 
+    // True if the required permissions are granted.
+    var hasPermission: Boolean = false
 
     // Returns if the Home Assistant server is registered with the onboarding.
     suspend fun isRegistered(): Boolean = assistRepository.isRegistered()
@@ -63,7 +65,7 @@ class AssistViewModel @Inject constructor(
         // Set up the repository synchronously (instead of the in coroutine), so we can make sure they are done before
         // this method returns.
         assistRepository.init()
-        assistRepository.hasPermission = hasPermission
+        this.hasPermission = hasPermission
         serverId?.let {
             filteredServerId = serverId
             assistRepository.selectedServerId = serverId
@@ -186,7 +188,7 @@ class AssistViewModel @Inject constructor(
             assistRepository.clearConversation()
             assistRepository.clearPipelineData()
             if (assistRepository.hasMicrophone && it.sttEngine != null) {
-                if (recorderAutoStart && (assistRepository.hasPermission || requestSilently)) {
+                if (recorderAutoStart && (hasPermission || requestSilently)) {
                     assistRepository.switchToVoice()
                     onMicrophoneInput()
                 } else { // already requested permission once and was denied
@@ -211,7 +213,7 @@ class AssistViewModel @Inject constructor(
             null, AssistRepository.InputMode.BLOCKED, AssistRepository.InputMode.TEXT_ONLY -> { /* Do nothing */ }
             AssistRepository.InputMode.TEXT -> {
                 assistRepository.switchToVoice()
-                if (assistRepository.hasPermission || requestSilently) {
+                if (hasPermission || requestSilently) {
                     onMicrophoneInput()
                 }
             }
@@ -228,7 +230,7 @@ class AssistViewModel @Inject constructor(
      */
     fun onMicrophoneInput() {
         Timber.d("ZZZ: onMicrophoneInput")
-        if (!assistRepository.hasPermission) {
+        if (!hasPermission) {
             requestPermission?.let { it() }
             return
         }
@@ -260,13 +262,13 @@ class AssistViewModel @Inject constructor(
         )
     }
 
-    fun setPermissionInfo(hasPermission: Boolean, callback: () -> Unit) {
-        assistRepository.hasPermission = hasPermission
+    fun setPermissionInfo(granted: Boolean, callback: () -> Unit) {
+        hasPermission = granted
         requestPermission = callback
     }
 
     fun onPermissionResult(granted: Boolean) {
-        assistRepository.hasPermission = granted
+        hasPermission = granted
         val pipelineReady = currentPipeline != null
         if (granted) {
             assistRepository.switchToVoice()

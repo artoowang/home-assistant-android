@@ -71,8 +71,6 @@ interface AssistRepository {
 
     // The ID of the selected Home Assistant server.
     var selectedServerId: Int
-    // True if the required permissions are granted.
-    var hasPermission: Boolean
 
     // True if the system has microphone support.
     val hasMicrophone: Boolean
@@ -155,7 +153,6 @@ class AssistRepositoryImpl @Inject constructor(
     override val hasMicrophone by lazy {
         application.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
     }
-    override var hasPermission = false
 
     private val _lastRecordedLevel = mutableStateOf<Float?>(null)
     override val lastRecordedLevel = _lastRecordedLevel
@@ -211,7 +208,6 @@ class AssistRepositoryImpl @Inject constructor(
         // Returns to null input model to indicate the repository has been released.
         setMode(null)
         selectedServerId = ServerManager.SERVER_ID_ACTIVE
-        hasPermission = false
         clearPipelineData()
         clearConversation()
         continueConversation.set(false)
