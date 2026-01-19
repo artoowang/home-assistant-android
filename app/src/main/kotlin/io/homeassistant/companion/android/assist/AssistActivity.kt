@@ -11,7 +11,6 @@ import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -97,6 +96,18 @@ class AssistActivity : BaseActivity() {
                 },
             )
 
+            // Starts a coroutine that monitors the input mode. When it becomes null, it means the sheet is closing,
+            // so we finish the activity. The input mode signal is backed by State<InputMode?>, which automatically
+            // de-duplicate repeated signals, so we won't get repeated it == null signals.
+            lifecycleScope.launch {
+                snapshotFlow { viewModel.inputMode }
+                    .filter { it == null }
+                    .collect {
+                        Timber.d("ZZZ: Input mode is null, closing activity.")
+                        finish()
+                    }
+            }
+
             // Make sure the GlassesActivity is launched AFTER AssistViewModel.onCreate(), which sets up the
             // AudioRecord. Otherwise, AudioRecord may record silent audio without error.
             // TODO: Weird, after I launch GlassesActivity in LaunchActivity, now whether I start the intent here or not
@@ -108,18 +119,6 @@ class AssistActivity : BaseActivity() {
         val fromFrontend = intent.getBooleanExtra(EXTRA_FROM_FRONTEND, false)
 
         setContent {
-            // Starts a coroutine that monitors the input mode. When it becomes null, it means the sheet is closing,
-            // so we finish the activity. The input mode signal is backed by State<InputMode?>, which automatically
-            // de-duplicate repeated signals, so we won't get repeated it == null signals.
-            LaunchedEffect(Unit) {
-                snapshotFlow { viewModel.inputMode }
-                    .filter { it == null }
-                    .collect {
-                        Timber.d("ZZZ: Input mode is null, closing activity.")
-                        finish()
-                    }
-            }
-
             HomeAssistantAppTheme {
                 AssistSheetView(
                     conversation = viewModel.conversation,
