@@ -9,10 +9,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.viewModels
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import androidx.xr.glimmer.GlimmerTheme
@@ -188,7 +191,15 @@ fun RootScreen(
                 .clickable {
                     onStartAssist()
                 }
-        ) {}
+        ) {
+            // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
+            // the screen?
+            Image(
+                painter = painterResource(id = R.drawable.ha_icon),
+                contentDescription = "Home Assistant Icon",
+                modifier = Modifier.size(GlimmerTheme.iconSizes.large),
+            )
+        }
     }
 }
 
