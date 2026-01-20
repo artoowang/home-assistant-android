@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,8 +41,17 @@ private val IconSize = 30.dp
 internal const val EmulatorScreenWidthDp = 450
 internal const val EmulatorScreenHeightDp = 394
 
+// This contains the microphone states for UI.
+data class MicState(
+    val recording: Boolean,
+    val lastRecordedLevel: Float,
+)
+
+// `micState` is null if the microphone is not enabled. Otherwise, it indicates the current state of the microphone.
+// See MicState.
 @Composable
 fun VoiceAssistScreen(
+    micState: MicState?,
     conversation: List<AssistMessage>,
 ) {
     Column(
@@ -54,12 +64,20 @@ fun VoiceAssistScreen(
         ChatListView(
             conversation = conversation,
         )
-        Image(
-            asset = CommunityMaterial.Icon3.cmd_microphone,
-            contentDescription = "Microphone",
-            colorFilter = ColorFilter.tint(Color.Red),
-            modifier = Modifier.size(28.dp),
-        )
+        if (micState != null) {
+            // TODO: This allows the scale go all the way up to 2 (when level is 1.0). Might need to revisit.
+            val scale = 1f + micState.lastRecordedLevel
+            Image(
+                asset = CommunityMaterial.Icon3.cmd_microphone,
+                contentDescription = "Microphone",
+                colorFilter = ColorFilter.tint(
+                     if (micState.recording) GlimmerTheme.colors.positive else GlimmerTheme.colors.outline
+                ),
+                modifier = Modifier
+                    .size(28.dp)
+                    .scale(scale),
+            )
+        }
     }
 }
 
@@ -150,6 +168,10 @@ private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
 @Composable
 private fun VoiceAssistScreenPreview() {
     VoiceAssistScreen(
+        micState = MicState(
+            recording = true,
+            lastRecordedLevel = 0.0f,
+        ),
         conversation = listOf(
             AssistMessage("What time is it?", isInput = true),
             AssistMessage("It's 12:30pm", isInput = false),

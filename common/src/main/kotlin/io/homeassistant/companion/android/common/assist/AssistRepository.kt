@@ -78,8 +78,8 @@ interface AssistRepository {
     // Read-only state of the list of messages.
     val conversation: List<AssistMessage>
 
-    // The audio level of the last recorded voice input, normalized to a value between 0.0f and 1.0f. null if the mic is
-    // not currently recording.
+    // The audio level of the last recorded voice input, normalized to a value between 0.0f and 1.0f. null if the mic
+    // has not received recording.
     val lastRecordedLevel: State<Float?>
 
     // Returns if the Home Assistant server is registered through the onboarding process.

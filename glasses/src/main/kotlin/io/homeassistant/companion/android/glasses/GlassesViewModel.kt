@@ -1,5 +1,6 @@
 package io.homeassistant.companion.android.glasses
 
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +19,10 @@ class GlassesViewModel @Inject constructor(
 
     // The current input mode, or null if the assist is not yet started.
     val inputMode = assistRepository.inputMode
+
+    // The audio level of the last recorded voice input, normalized to a value between 0.0f and 1.0f. null if the mic is
+    // not currently recording.
+    val lastRecordedLevel: Float? by assistRepository.lastRecordedLevel
 
     // The current list of messages in the conversation.
     val conversation: List<AssistMessage> = assistRepository.conversation

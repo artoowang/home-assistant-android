@@ -139,6 +139,7 @@ class GlassesActivity : ComponentActivity() {
                 when {
                     isPermissionsGranted -> RootScreen(
                         inputMode = viewModel.inputMode.value,
+                        lastRecordedLevel = viewModel.lastRecordedLevel,
                         conversation = viewModel.conversation,
                         onStartAssist = { viewModel.startAssistAndRecording() }
                     )
@@ -147,6 +148,32 @@ class GlassesActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+// Builds the MicState for UI.
+// TODO: This is to practice separating ViewModel states from UI / Composable states.
+private fun buildMicState(
+    inputMode: AssistRepository.InputMode,
+    lastRecordedLevel: Float?,
+): MicState? {
+    return when (inputMode) {
+        // Mic is recording and shows last recorded level when input mode is VOICE_ACTIVE.
+        AssistRepository.InputMode.VOICE_ACTIVE -> {
+            MicState(
+                recording = true,
+                // If there is no last recorded level available, it means the first mic sample has not yet arrived, or
+                // something is wrong. Assume 0.
+                lastRecordedLevel = lastRecordedLevel ?: 0.0f,
+            )
+        }
+        // Mic is not recording and shows 0 level when input mode is VOICE_INACTIVE.
+        AssistRepository.InputMode.VOICE_INACTIVE -> MicState(
+            recording = false,
+            lastRecordedLevel = 0.0f,
+        )
+        // Mic is disabled otherwise (e.g., VOICE_TEXT).
+        else -> null
     }
 }
 
@@ -165,16 +192,21 @@ fun PermissionNotice() {
     }
 }
 
+// `ìnputMode` is null if the assist session has not yet started.
 @Composable
 fun RootScreen(
     inputMode: AssistRepository.InputMode?,
+    lastRecordedLevel: Float?,
     conversation: List<AssistMessage>,
     onStartAssist: () -> Unit,
 ) {
     when {
-        inputMode != null -> VoiceAssistScreen(
+        inputMode != null -> {
+            VoiceAssistScreen(
+                micState = buildMicState(inputMode, lastRecordedLevel),
                 conversation = conversation,
             )
+        }
 
         // When input mode is null (not initialized), show empty screen but tappable.
         else -> Box(
@@ -205,6 +237,7 @@ fun RootScreen(
 private fun NullInputMode() {
     RootScreen(
         inputMode = null,
+        lastRecordedLevel = null,
         conversation = listOf(),
         onStartAssist = {}
     )
