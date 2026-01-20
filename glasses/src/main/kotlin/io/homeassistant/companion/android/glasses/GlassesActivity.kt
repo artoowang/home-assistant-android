@@ -165,12 +165,6 @@ fun PermissionNotice() {
     }
 }
 
-@Preview
-@Composable
-private fun PermissionNoticePreview() {
-    PermissionNotice()
-}
-
 @Composable
 fun RootScreen(
     inputMode: AssistRepository.InputMode?,
@@ -203,7 +197,10 @@ fun RootScreen(
     }
 }
 
-@Preview
+@Preview(
+    widthDp = EmulatorScreenWidthDp,
+    heightDp = EmulatorScreenHeightDp,
+)
 @Composable
 private fun NullInputMode() {
     RootScreen(
@@ -211,4 +208,13 @@ private fun NullInputMode() {
         conversation = listOf(),
         onStartAssist = {}
     )
+}
+
+@Preview(
+    widthDp = EmulatorScreenWidthDp,
+    heightDp = EmulatorScreenHeightDp,
+)
+@Composable
+private fun PermissionNoticePreview() {
+    PermissionNotice()
 }

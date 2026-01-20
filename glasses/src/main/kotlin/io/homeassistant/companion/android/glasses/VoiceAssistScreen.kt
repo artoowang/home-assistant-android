@@ -13,7 +13,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,24 +32,22 @@ private val ListItemSpacing = 12.dp
 private const val MaxItemsInList = 3
 private val IconSize = 30.dp
 
+// These are the size obtained from running the app on glasses emulator.
+internal const val EmulatorScreenWidthDp = 450
+internal const val EmulatorScreenHeightDp = 394
+
 @Composable
 fun VoiceAssistScreen(
     conversation: List<AssistMessage>,
-    modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val activity = context as Activity
-    val onExit = { activity.finish() }
-
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
         ChatListView(
             conversation = conversation,
-            onExit = onExit,
         )
     }
 }
@@ -59,7 +56,6 @@ fun VoiceAssistScreen(
 @Composable
 private fun ChatListView(
     conversation: List<AssistMessage>,
-    onExit: () -> Unit,
 ) {
     // Used to scroll list. This is "remembered" so it persists across recompositions.
     val listState = rememberListState()
@@ -109,25 +105,6 @@ private fun ChatListView(
     }
 }
 
-// Used to preview ChatList.
-@Preview
-@Composable
-private fun ChatListViewPreview() {
-    ChatListView(
-        conversation = listOf(
-            AssistMessage("What time is it?", isInput = true),
-            AssistMessage("It's 12:30pm", isInput = false),
-            AssistMessage("Say something", isInput = true),
-            AssistMessage("You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
-                "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
-                "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
-                "size.", isInput = false),
-            AssistMessage("...", isInput = true),
-        ),
-        onExit = {},
-    )
-}
-
 // Represents a single chat conversation entry. `modifier` is used for ListItem.
 @Composable
 private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
@@ -138,7 +115,7 @@ private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
     }
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize()
     ) {
         ListItem(
             modifier = modifier
@@ -153,4 +130,24 @@ private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+@Preview(
+    widthDp = EmulatorScreenWidthDp,
+    heightDp = EmulatorScreenHeightDp,
+)
+@Composable
+private fun VoiceAssistScreenPreview() {
+    VoiceAssistScreen(
+        conversation = listOf(
+            AssistMessage("What time is it?", isInput = true),
+            AssistMessage("It's 12:30pm", isInput = false),
+            AssistMessage("Say something", isInput = true),
+            AssistMessage("You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
+                "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
+                "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
+                "size.", isInput = false),
+            AssistMessage("...", isInput = true),
+        ),
+    )
 }
