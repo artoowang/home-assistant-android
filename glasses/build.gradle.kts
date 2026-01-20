@@ -29,10 +29,12 @@ android {
 
 dependencies {
     implementation(project(":common"))
-    implementation(libs.core.ktx)
     implementation(libs.activity.compose)
     implementation(libs.androidx.material3)
     implementation(libs.appcompat)
+    implementation(libs.community.material.typeface)
+    implementation(libs.core.ktx)
+    implementation(libs.iconics.compose)
     implementation(libs.material)
     implementation("androidx.xr.glimmer:glimmer:1.0.0-alpha04")
     implementation("androidx.xr.projected:projected:1.0.0-alpha03")

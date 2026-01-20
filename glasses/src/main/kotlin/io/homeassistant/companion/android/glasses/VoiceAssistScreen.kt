@@ -1,18 +1,20 @@
 package io.homeassistant.companion.android.glasses
 
-import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,6 +23,8 @@ import androidx.xr.glimmer.ListItem
 import androidx.xr.glimmer.Text
 import androidx.xr.glimmer.list.VerticalList
 import androidx.xr.glimmer.list.rememberListState
+import com.mikepenz.iconics.compose.Image
+import com.mikepenz.iconics.typeface.library.community.material.CommunityMaterial
 import io.homeassistant.companion.android.common.assist.AssistMessage
 import kotlin.math.min
 import timber.log.Timber
@@ -40,14 +44,21 @@ internal const val EmulatorScreenHeightDp = 394
 fun VoiceAssistScreen(
     conversation: List<AssistMessage>,
 ) {
-    Box(
-        contentAlignment = Alignment.Center,
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.Black),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         ChatListView(
             conversation = conversation,
+        )
+        Image(
+            asset = CommunityMaterial.Icon3.cmd_microphone,
+            contentDescription = "Microphone",
+            colorFilter = ColorFilter.tint(Color.Red),
+            modifier = Modifier.size(28.dp),
         )
     }
 }
@@ -115,12 +126,12 @@ private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
     }
 
     Box(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
     ) {
         ListItem(
             modifier = modifier
                 .fillMaxWidth(0.75f)
-                .align(if (msg.isInput) Alignment.CenterEnd else Alignment.CenterStart)
+                .align(if (msg.isInput) Alignment.CenterEnd else Alignment.CenterStart),
         ) {
             Text(
                 text = msg.message,
@@ -143,10 +154,13 @@ private fun VoiceAssistScreenPreview() {
             AssistMessage("What time is it?", isInput = true),
             AssistMessage("It's 12:30pm", isInput = false),
             AssistMessage("Say something", isInput = true),
-            AssistMessage("You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
-                "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
-                "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
-                "size.", isInput = false),
+            AssistMessage(
+                "You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
+                    "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
+                    "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
+                    "size.",
+                isInput = false,
+            ),
             AssistMessage("...", isInput = true),
         ),
     )
