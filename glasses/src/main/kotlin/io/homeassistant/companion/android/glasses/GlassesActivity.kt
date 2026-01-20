@@ -141,7 +141,8 @@ class GlassesActivity : ComponentActivity() {
                         inputMode = viewModel.inputMode.value,
                         lastRecordedLevel = viewModel.lastRecordedLevel,
                         conversation = viewModel.conversation,
-                        onStartAssist = { viewModel.startAssistAndRecording() }
+                        onStartAssist = { viewModel.startAssistAndRecording() },
+                        toggleMicrophone = { viewModel.toggleMicrophone() },
                     )
 
                     else -> PermissionNotice()
@@ -199,12 +200,14 @@ fun RootScreen(
     lastRecordedLevel: Float?,
     conversation: List<AssistMessage>,
     onStartAssist: () -> Unit,
+    toggleMicrophone: () -> Unit,
 ) {
     when {
         inputMode != null -> {
             VoiceAssistScreen(
                 micState = buildMicState(inputMode, lastRecordedLevel),
-                conversation = conversation,
+                conversation,
+                toggleMicrophone,
             )
         }
 
@@ -239,7 +242,8 @@ private fun NullInputMode() {
         inputMode = null,
         lastRecordedLevel = null,
         conversation = listOf(),
-        onStartAssist = {}
+        onStartAssist = {},
+        toggleMicrophone = {},
     )
 }
 

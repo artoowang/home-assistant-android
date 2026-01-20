@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.common.assist.AssistRepository
 import io.homeassistant.companion.android.common.data.servers.ServerManager
+import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineResponse
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -26,6 +27,9 @@ class GlassesViewModel @Inject constructor(
 
     // The current list of messages in the conversation.
     val conversation: List<AssistMessage> = assistRepository.conversation
+
+    // The selected pipeline during startAssistAndRecording().
+    private var selectedPipeline: AssistPipelineResponse? = null
 
     // Starts the assist session and starts to record.
     fun startAssistAndRecording() {
@@ -54,16 +58,53 @@ class GlassesViewModel @Inject constructor(
         }) {
             // Now starts a coroutine to get the pipeline info, and run the pipeline once we have the info.
             viewModelScope.launch {
-                val pipeline = serverManager
+                selectedPipeline = serverManager
                     .webSocketRepository(activeServerId)
                     .getAssistPipeline(pipelineId = null)
-                Timber.d("ZZZ: startAssist: pipeline=$pipeline")
+                Timber.d("ZZZ: startAssist: pipeline=$selectedPipeline")
                 assistRepository.runAssistPipeline(
                     viewModelScope,
                     text = null,  // Voice input.
-                    pipeline = pipeline,
+                    pipeline = selectedPipeline,
                 )
             }
+        }
+    }
+
+    // Toggles the microphone on or off based on the current input mode.
+    fun toggleMicrophone() {
+        Timber.d("ZZZ: toggleMicrophone")
+
+        when (inputMode.value) {
+            // When voice assist is already active, we want to turn off the microphone.
+            // TODO: This needs some work, it does not seem to do what I expected.
+            AssistRepository.InputMode.VOICE_ACTIVE -> {
+                assistRepository.stopRecording(viewModelScope)
+                return
+            }
+
+            // When voice assist is not active, or if we are currently using text input (but voice assist is supported),
+            // we want to turn on the microphone.
+            AssistRepository.InputMode.VOICE_INACTIVE, AssistRepository.InputMode.TEXT -> {
+                assistRepository.stopPlayback()
+                if (
+                    try {
+                        assistRepository.startRecording(viewModelScope)
+                    } catch (e: Exception) {
+                        Timber.e(e, "Exception while starting recording")
+                        false
+                    }
+                ) {
+                    assistRepository.runAssistPipeline(
+                        viewModelScope,
+                        text = null,  // Voice input.
+                        pipeline = selectedPipeline,
+                    )
+                }
+            }
+
+            // Otherwise, the microphone is not supported, and UI should not allow this to happen.
+            else -> assert(false) { "Should not trigger toggleMicrophone() when input mode is $inputMode" }
         }
     }
 
@@ -71,5 +112,6 @@ class GlassesViewModel @Inject constructor(
     fun stopAssist() {
         Timber.d("ZZZ: stopAssist")
         assistRepository.release(viewModelScope)
+        selectedPipeline = null
     }
 }

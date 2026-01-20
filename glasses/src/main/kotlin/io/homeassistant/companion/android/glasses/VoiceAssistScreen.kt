@@ -53,6 +53,7 @@ data class MicState(
 fun VoiceAssistScreen(
     micState: MicState?,
     conversation: List<AssistMessage>,
+    toggleMicrophone: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -62,7 +63,8 @@ fun VoiceAssistScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         ChatListView(
-            conversation = conversation,
+            conversation,
+            toggleMicrophone,
         )
         if (micState != null) {
             // TODO: This allows the scale go all the way up to 2 (when level is 1.0). Might need to revisit.
@@ -85,6 +87,7 @@ fun VoiceAssistScreen(
 @Composable
 private fun ChatListView(
     conversation: List<AssistMessage>,
+    toggleMicrophone: () -> Unit,
 ) {
     // Used to scroll list. This is "remembered" so it persists across recompositions.
     val listState = rememberListState()
@@ -111,7 +114,7 @@ private fun ChatListView(
         for (msg in conversation) {
             // TODO: We should use stable key so the list can animate individual messages correctly.
             item {
-                ChatItem(msg)
+                ChatItem(msg, toggleMicrophone)
             }
         }
 
@@ -136,7 +139,10 @@ private fun ChatListView(
 
 // Represents a single chat conversation entry. `modifier` is used for ListItem.
 @Composable
-private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
+private fun ChatItem(
+    msg: AssistMessage,
+    toggleMicrophone: () -> Unit,
+) {
     val textColor = when {
         msg.isError -> GlimmerTheme.colors.negative
         msg.isInput -> GlimmerTheme.colors.outline
@@ -144,12 +150,13 @@ private fun ChatItem(msg: AssistMessage, modifier: Modifier = Modifier) {
     }
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
     ) {
         ListItem(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxWidth(0.75f)
                 .align(if (msg.isInput) Alignment.CenterEnd else Alignment.CenterStart),
+            onClick = toggleMicrophone,
         ) {
             Text(
                 text = msg.message,
@@ -185,5 +192,6 @@ private fun VoiceAssistScreenPreview() {
             ),
             AssistMessage("...", isInput = true),
         ),
+        toggleMicrophone = {},
     )
 }
