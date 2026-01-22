@@ -33,7 +33,7 @@ class GlassesViewModel @Inject constructor(
 
     // Starts the assist session and starts to record.
     fun startAssistAndRecording() {
-        Timber.d("ZZZ: startAssistAndRecording")
+        Timber.d("ZZZ: startAssistAndRecording, viewModel=$this")
 
         // TODO: The following is a drastic simplification of what is happening in AssistViewModel. We can potentially
         // consolidate the following with AssistViewModel into AssistRepository.
@@ -108,9 +108,11 @@ class GlassesViewModel @Inject constructor(
         }
     }
 
-    // Stops the assist session.
-    fun stopAssist() {
-        Timber.d("ZZZ: stopAssist")
+    // This is invoked when the Activity it is associated with is destroyed.
+    override fun onCleared() {
+        super.onCleared()
+        Timber.d("ZZZ: onCleared")
+
         assistRepository.release(viewModelScope)
         selectedPipeline = null
     }

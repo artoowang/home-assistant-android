@@ -48,7 +48,6 @@ class GlassesAssistActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Timber.d("ZZZ: onDestroy")
-        viewModel.stopAssist()
     }
 
     // Builds the MicState for UI.
