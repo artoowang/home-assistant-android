@@ -8,7 +8,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,9 +31,6 @@ import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import dagger.hilt.android.AndroidEntryPoint
-import io.homeassistant.companion.android.common.assist.AssistMessage
-import io.homeassistant.companion.android.common.assist.AssistRepository
-import kotlin.getValue
 import timber.log.Timber
 
 @OptIn(ExperimentalProjectedApi::class)
@@ -58,12 +54,8 @@ fun launchGlassesExperience(context: Context) {
     }
 }
 
-// This is modified from AI Sample Catalog, Gemini Live Todo example.
 @AndroidEntryPoint
 class GlassesActivity : ComponentActivity() {
-
-    private val viewModel: GlassesViewModel by viewModels()
-
     // -----------------------------------------------------------------------------------------------------------------
     // Permission Utilities.
 
@@ -105,7 +97,7 @@ class GlassesActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState, viewModel=$viewModel")
+        Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState")
 
         val allGranted = checkAllPermissionsGranted()
         isPermissionsGranted = allGranted
@@ -130,51 +122,44 @@ class GlassesActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Timber.d("ZZZ: onDestroy")
-        viewModel.stopAssist()
+    }
+
+    // Launches the assist activity for glasses.
+    private fun startAssistActivity() {
+        try {
+            val intent = Intent(this, GlassesAssistActivity::class.java)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Timber.e("Error during launch: ${e.message}")
+        }
     }
 
     private fun setupContent() {
         setContent {
             GlimmerTheme {
                 when {
-                    isPermissionsGranted -> RootScreen(
-                        inputMode = viewModel.inputMode.value,
-                        lastRecordedLevel = viewModel.lastRecordedLevel,
-                        conversation = viewModel.conversation,
-                        onStartAssist = { viewModel.startAssistAndRecording() },
-                        toggleMicrophone = { viewModel.toggleMicrophone() },
-                    )
+                    isPermissionsGranted -> Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black)
+                            .clickable {
+                                startAssistActivity()
+                            }
+                    ) {
+                        // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
+                        // the screen?
+                        Image(
+                            painter = painterResource(id = R.drawable.ha_icon),
+                            contentDescription = "Home Assistant Icon",
+                            modifier = Modifier.size(GlimmerTheme.iconSizes.large),
+                        )
+                    }
 
                     else -> PermissionNotice()
                 }
             }
         }
-    }
-}
-
-// Builds the MicState for UI.
-// TODO: This is to practice separating ViewModel states from UI / Composable states.
-private fun buildMicState(
-    inputMode: AssistRepository.InputMode,
-    lastRecordedLevel: Float?,
-): MicState? {
-    return when (inputMode) {
-        // Mic is recording and shows last recorded level when input mode is VOICE_ACTIVE.
-        AssistRepository.InputMode.VOICE_ACTIVE -> {
-            MicState(
-                recording = true,
-                // If there is no last recorded level available, it means the first mic sample has not yet arrived, or
-                // something is wrong. Assume 0.
-                lastRecordedLevel = lastRecordedLevel ?: 0.0f,
-            )
-        }
-        // Mic is not recording and shows 0 level when input mode is VOICE_INACTIVE.
-        AssistRepository.InputMode.VOICE_INACTIVE -> MicState(
-            recording = false,
-            lastRecordedLevel = 0.0f,
-        )
-        // Mic is disabled otherwise (e.g., VOICE_TEXT).
-        else -> null
     }
 }
 
@@ -189,62 +174,6 @@ fun PermissionNotice() {
         Text(
             text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",
             color = Color(0xFFFF0000),
-        )
-    }
-}
-
-// `ìnputMode` is null if the assist session has not yet started.
-@Composable
-fun RootScreen(
-    inputMode: AssistRepository.InputMode?,
-    lastRecordedLevel: Float?,
-    conversation: List<AssistMessage>,
-    onStartAssist: () -> Unit,
-    toggleMicrophone: () -> Unit,
-) {
-    when {
-        inputMode != null -> {
-            VoiceAssistScreen(
-                micState = buildMicState(inputMode, lastRecordedLevel),
-                conversation,
-                toggleMicrophone,
-            )
-        }
-
-        // When input mode is null (not initialized), show empty screen but tappable.
-        else -> Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-                .clickable {
-                    onStartAssist()
-                }
-        ) {
-            // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
-            // the screen?
-            Image(
-                painter = painterResource(id = R.drawable.ha_icon),
-                contentDescription = "Home Assistant Icon",
-                modifier = Modifier.size(GlimmerTheme.iconSizes.large),
-            )
-        }
-    }
-}
-
-@Preview(
-    widthDp = EmulatorScreenWidthDp,
-    heightDp = EmulatorScreenHeightDp,
-)
-@Composable
-private fun NullInputMode() {
-    GlimmerTheme {
-        RootScreen(
-            inputMode = null,
-            lastRecordedLevel = null,
-            conversation = listOf(),
-            onStartAssist = {},
-            toggleMicrophone = {},
         )
     }
 }
