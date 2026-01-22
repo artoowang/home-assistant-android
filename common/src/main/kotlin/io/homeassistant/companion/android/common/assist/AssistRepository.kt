@@ -177,6 +177,10 @@ class AssistRepositoryImpl @Inject constructor(
 
     // -----------------------------------------------------------------------------------------------------------------
     // Pipeline data.
+
+    // This is the ID of the STT binary handler. It is set at RUN_START. Later, at STT_START, we send all queued audio
+    // data in `recorderQueue` to this binary handler, and delete the `recorderQueue`. All subsequent recording data
+    // will then be sent straight to the binary handler.
     private var binaryHandlerId: Int? = null
     private var conversationId: String? = null
 
