@@ -73,7 +73,7 @@ fun VoiceAssistScreen(
                 asset = CommunityMaterial.Icon3.cmd_microphone,
                 contentDescription = "Microphone",
                 colorFilter = ColorFilter.tint(
-                     if (micState.recording) GlimmerTheme.colors.positive else GlimmerTheme.colors.outline
+                    if (micState.recording) GlimmerTheme.colors.positive else GlimmerTheme.colors.outline,
                 ),
                 modifier = Modifier
                     .size(28.dp)
@@ -174,24 +174,26 @@ private fun ChatItem(
 )
 @Composable
 private fun VoiceAssistScreenPreview() {
-    VoiceAssistScreen(
-        micState = MicState(
-            recording = true,
-            lastRecordedLevel = 0.0f,
-        ),
-        conversation = listOf(
-            AssistMessage("What time is it?", isInput = true),
-            AssistMessage("It's 12:30pm", isInput = false),
-            AssistMessage("Say something", isInput = true),
-            AssistMessage(
-                "You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
-                    "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
-                    "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
-                    "size.",
-                isInput = false,
+    GlimmerTheme {
+        VoiceAssistScreen(
+            micState = MicState(
+                recording = true,
+                lastRecordedLevel = 0.0f,
             ),
-            AssistMessage("...", isInput = true),
-        ),
-        toggleMicrophone = {},
-    )
+            conversation = listOf(
+                AssistMessage("What time is it?", isInput = true),
+                AssistMessage("It's 12:30pm", isInput = false),
+                AssistMessage("Say something", isInput = true),
+                AssistMessage(
+                    "You've correctly identified the fontSize parameter, but it requires a specific unit type, " +
+                        "not just a raw number. In Jetpack Compose, font sizes should be specified using the .sp " +
+                        "(scale-independent pixels) unit.\nTo fix this, you need to import sp and use it to define the font " +
+                        "size.",
+                    isInput = false,
+                ),
+                AssistMessage("...", isInput = true),
+            ),
+            toggleMicrophone = {},
+        )
+    }
 }

@@ -2,13 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity
-            android:name="io.homeassistant.companion.android.glasses.GlassesActivity"
+            android:name=".GlassesActivity"
             android:exported="true"
             android:label="Glasses Experience"
             android:requiredDisplayCategory="@string/display_category_xr_projected">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="androidx.xr.projected.CATEGORY_PROJECTED"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="androidx.xr.projected.CATEGORY_PROJECTED" />
             </intent-filter>
         </activity>
     </application>
