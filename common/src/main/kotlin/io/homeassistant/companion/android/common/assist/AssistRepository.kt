@@ -362,13 +362,23 @@ class AssistRepositoryImpl @Inject constructor(
                     }
                     AssistPipelineEventType.STT_START -> {
                         scope.launch {
-                            binaryHandlerId?.let { id ->
+                            // Make a snapshot of the recorderQueue, and clear it (so the future input will be sent
+                            // straight to the remote). A snapshot is needed because the forEach loop below may stop in
+                            // the middle since sendVoiceData() is a suspend function, and we need to avoid the list
+                            // being modified in the middle of the loop.
+                            val queueSnapshot = recorderQueue?.toList()
+                            recorderQueue = null
+
+                            val id = binaryHandlerId
+                            if (id != null) {
                                 // Manually loop here to avoid the queue being reset too soon
-                                recorderQueue?.forEach { data ->
+                                queueSnapshot?.forEach { data ->
                                     serverManager.webSocketRepository(selectedServerId).sendVoiceData(id, data)
                                 }
+                            } else {
+                                Timber.e("No binary handler ID available at STT_START. Recording will not " +
+                                    "be sent.")
                             }
-                            recorderQueue = null
                         }
                     }
                     AssistPipelineEventType.STT_END -> {
