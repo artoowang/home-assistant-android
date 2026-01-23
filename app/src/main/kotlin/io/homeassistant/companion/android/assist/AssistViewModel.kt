@@ -79,7 +79,7 @@ class AssistViewModel @Inject constructor(
             }
 
             val supported = checkSupport()
-            if (supported != true) assistRepository.stopRecording(viewModelScope)
+            if (supported != true) assistRepository.stopRecording(sendRecordedScope = viewModelScope)
             if (supported == null) { // Couldn't get config
                 assistRepository.markBlocked(application.getString(commonR.string.assist_connnect))
             } else if (!supported) { // Core too old or doesn't include assist pipeline
@@ -165,7 +165,7 @@ class AssistViewModel @Inject constructor(
     fun changePipeline(serverId: Int, id: String) = viewModelScope.launch {
         if (serverId == assistRepository.selectedServerId && id == selectedPipeline?.id) return@launch
 
-        assistRepository.stopRecording(viewModelScope, sendRecorded = false)
+        assistRepository.stopRecording()
         assistRepository.stopPlayback()
 
         assistRepository.selectedServerId = serverId
@@ -236,7 +236,7 @@ class AssistViewModel @Inject constructor(
         }
 
         if (inputMode == AssistRepository.InputMode.VOICE_ACTIVE) {
-            assistRepository.stopRecording(viewModelScope)
+            assistRepository.stopRecording(sendRecordedScope = viewModelScope)
             return
         }
 
@@ -286,11 +286,11 @@ class AssistViewModel @Inject constructor(
     fun onPause() {
         requestPermission = null
         // TODO: Should we do this? It seems this will cause the recording to stop when rotating the screen?
-        assistRepository.stopRecording(viewModelScope)
+        assistRepository.stopRecording(sendRecordedScope = viewModelScope)
     }
 
     fun onDestroy() {
         requestPermission = null
-        assistRepository.release(viewModelScope)
+        assistRepository.release()
     }
 }

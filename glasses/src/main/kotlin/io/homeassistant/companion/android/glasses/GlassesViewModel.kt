@@ -79,7 +79,7 @@ class GlassesViewModel @Inject constructor(
             // When voice assist is already active, we want to turn off the microphone.
             // TODO: This needs some work, it does not seem to do what I expected.
             AssistRepository.InputMode.VOICE_ACTIVE -> {
-                assistRepository.stopRecording(viewModelScope)
+                assistRepository.stopRecording(sendRecordedScope = viewModelScope)
                 return
             }
 
@@ -113,7 +113,7 @@ class GlassesViewModel @Inject constructor(
         super.onCleared()
         Timber.d("ZZZ: onCleared")
 
-        assistRepository.release(viewModelScope)
+        assistRepository.release()
         selectedPipeline = null
     }
 }

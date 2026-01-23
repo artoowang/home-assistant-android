@@ -98,7 +98,7 @@ interface AssistRepository {
 
     // Releases the repository. This should be called when the voice assist sessions stops. It can happen through
     // multiple UIs (e.g., Assist sheet on the mobile, or UI from the glasses), and repeated request is a no-op.
-    fun release(scope: CoroutineScope)
+    fun release()
 
     // Clears pipeline related data.
     fun clearPipelineData()
@@ -123,8 +123,9 @@ interface AssistRepository {
     // Starts audio recorder.
     fun startRecording(scope: CoroutineScope): Boolean
 
-    // Stops audio recorder.
-    fun stopRecording(scope: CoroutineScope, sendRecorded: Boolean = true)
+    // Stops audio recorder. By default this discards all remaining audio data. To send those to the remote, provide
+    // `sendRecordedScope`.
+    fun stopRecording(sendRecordedScope: CoroutineScope? = null)
 
     // Stops audio playback.
     fun stopPlayback()
@@ -209,14 +210,14 @@ class AssistRepositoryImpl @Inject constructor(
         setMode(InputMode.TEXT)
     }
 
-    override fun release(scope: CoroutineScope) {
+    override fun release() {
         Timber.d("ZZZ: release")
         if (_inputMode.value == null) {
             Timber.i("Assist has already released. Ignored re-release.")
             return
         }
 
-        stopRecording(scope)
+        stopRecording()
         stopPlayback()
 
         // Returns to null input model to indicate the repository has been released.
@@ -250,7 +251,7 @@ class AssistRepositoryImpl @Inject constructor(
 
         if (_inputMode.value == InputMode.VOICE_ACTIVE) {
             // Stop the current recording (and discard the recorded data).
-            stopRecording(scope, sendRecorded = false)
+            stopRecording()
         }
 
         if (textOnly) {
@@ -371,7 +372,7 @@ class AssistRepositoryImpl @Inject constructor(
                         }
                     }
                     AssistPipelineEventType.STT_END -> {
-                        stopRecording(scope)
+                        stopRecording(sendRecordedScope = scope)
                         (it.data as? AssistPipelineSttEnd)?.sttOutput?.let { response ->
                             onAssistEvent(AssistEvent.Message.Input(response["text"] as String))
                         }
@@ -406,13 +407,13 @@ class AssistRepositoryImpl @Inject constructor(
                         }
                     }
                     AssistPipelineEventType.RUN_END -> {
-                        stopRecording(scope)
+                        stopRecording(sendRecordedScope = scope)
                         job?.cancel()
                     }
                     AssistPipelineEventType.ERROR -> {
                         val errorMessage = (it.data as? AssistPipelineError)?.message ?: return@collect
                         onAssistEvent(AssistEvent.Message.Error(errorMessage))
-                        stopRecording(scope)
+                        stopRecording(sendRecordedScope = scope)
                         job?.cancel()
                     }
                     else -> { /* Do nothing */ }
@@ -488,7 +489,7 @@ class AssistRepositoryImpl @Inject constructor(
         } ?: false
     }
 
-    override fun stopRecording(scope: CoroutineScope, sendRecorded: Boolean) {
+    override fun stopRecording(sendRecordedScope: CoroutineScope?) {
         if (_inputMode.value != InputMode.VOICE_ACTIVE) {
             // No action needed. Let's check for error condition, but not try to fix them.
             assert(!audioRecorder.isRecording()) {
@@ -501,22 +502,23 @@ class AssistRepositoryImpl @Inject constructor(
         audioRecorder.stopRecording()
         recorderJob?.cancel()
         recorderJob = null
-        if (binaryHandlerId != null) {
-            scope.launch {
-                if (sendRecorded) {
+        if (sendRecordedScope != null) {
+            if (binaryHandlerId != null) {
+                // TODO: This is actually launching a coroutine to iterate through the queue, which lauches new
+                // coroutines for each recording. Is this desired or necessary?
+                sendRecordedScope.launch {
                     recorderQueue?.forEach {
-                        sendVoiceData(scope, it)
+                        sendVoiceData(sendRecordedScope, it)
                     }
-                    sendVoiceData(scope, byteArrayOf()) // Empty message to indicate end of recording
+                    sendVoiceData(sendRecordedScope, byteArrayOf()) // Empty message to indicate end of recording
                 }
-                recorderQueue = null
-                binaryHandlerId = null
+            } else {
+                Timber.w("Ignore sending the remaining data at stop recording: no binary handler ID.")
             }
-        } else {
-            recorderQueue = null
         }
+        recorderQueue = null
+        binaryHandlerId = null
         _lastRecordedLevel.value = null
-
         setMode(InputMode.VOICE_INACTIVE)
     }
 
