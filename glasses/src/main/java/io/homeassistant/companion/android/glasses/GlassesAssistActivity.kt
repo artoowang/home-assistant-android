@@ -19,9 +19,10 @@ class GlassesAssistActivity : ComponentActivity() {
         Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState, viewModel=$viewModel")
 
         viewModel.startAssistAndRecording()
-        viewModel.inputMode.value?.let { inputMode ->
-            setContent {
-                GlimmerTheme {
+        setContent {
+            GlimmerTheme {
+                val inputMode = viewModel.inputMode.value
+                if (inputMode != null) {
                     VoiceAssistScreen(
                         micState = buildMicState(
                             inputMode = inputMode,
@@ -30,9 +31,11 @@ class GlassesAssistActivity : ComponentActivity() {
                         conversation = viewModel.conversation,
                         toggleMicrophone = { viewModel.toggleMicrophone() },
                     )
+                } else {
+                    assert(false) { "Input mode should be non-null at this point." }
                 }
             }
-        } ?: assert(false) { "Input mode should be non-null at this point." }
+        }
     }
 
     override fun onResume() {
