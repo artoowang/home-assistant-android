@@ -270,67 +270,98 @@ class AssistRepositoryImpl @Inject constructor(
 
         stopPlayback()
 
-        // Initial user message is "…" if using voice input (i.e., `text` is null), or the actually provided initial
-        // input (i.e., `text`) otherwise.
-        val initialUserMessage = AssistMessage(text ?: "…", isInput = true)
-        _conversation.add(initialUserMessage)
+        // Initial user message is "…" if using voice input, or the actually provided initial input (i.e., `text`)
+        // otherwise.
+        var inputPlaceholderId: Int? = null
+        if (isVoice) {
+            inputPlaceholderId = _conversation.size
+            _conversation.add(AssistMessage("…", isInput = true))
+        } else {
+            _conversation.add(AssistMessage(text, isInput = true))
+        }
 
         // Placeholder Home Assistant response (i.e., "…") when we have the user input and are waiting for the response.
         // - For voice input, this is added when we receive the STT result (AssistEvent.Message.Input).
         // - For text input, this is added immediately below since the user input is already added.
-        val haPlaceholderMessage = AssistMessage("…", isInput = false)
-
-        // This is a reference to the last placeholder message currently in the conversation.
-        var lastPlaceholderMessage = if (isVoice) {
-            // For voice input, it is the initial placeholder user message (since we are waiting for the STT result).
-            initialUserMessage
-        } else {
-            // For text input, it is the placeholder assistant message (since the user message is already added).
-            _conversation.add(haPlaceholderMessage)
-            haPlaceholderMessage
+        val outputPlaceholderMessage = AssistMessage("…", isInput = false)
+        var outputPlaceholderId: Int? = null
+        if (!isVoice) {
+            outputPlaceholderId = _conversation.size
+            _conversation.add(outputPlaceholderMessage)
         }
 
         // TODO: We can probably merge this into the flow handling below, and skip all AssistEvents
         fun onAssistEvent(event: AssistEvent) {
             when (event) {
-                // Complete user (input) or assistant (output) message:
+                // Complete user (input), assistant (output) message, or error message:
                 // - User messages represent the STT outputs, and we only get these messages with voice assist. (Text
                 //   input is provided directly through `text`).
                 // - Assistant messages represent the Home Assistant responses.
                 is AssistEvent.Message -> {
-                    // The `lastPlaceholderMessage` is not necessarily in the conversation:
-                    // - If it is not in the conversation, it means we are not doing voice input (so no input
-                    //   placeholder), and the output is already replaced by MessageChunks. In such case, we don't add
-                    //   the new message in the event.
-                    //   TODO: This does mean that we lose the potential error message.
-                    // - If it is still in the conversation, we then replace the last placeholder with the incoming
-                    //   message. If the event is an input message, we also add a new placeholder for the output, and
-                    //   update the last placeholder reference accordingly.
-                    // TODO: It seems we can make this easier to read by separately handle input/output/error messages.
-                    _conversation.indexOf(lastPlaceholderMessage).takeIf { pos -> pos >= 0 }?.let { index ->
-                        val isInput = event is AssistEvent.Message.Input
-                        val isError = event is AssistEvent.Message.Error
-                        _conversation[index] = AssistMessage(
-                            message = event.message.trim(),
-                            isInput = isInput,
-                            isError = isError,
-                        )
-                        if (isInput) {
-                            _conversation.add(haPlaceholderMessage)
-                            lastPlaceholderMessage = haPlaceholderMessage
+                    when (event) {
+                        is AssistEvent.Message.Input -> {
+                            assert(isVoice) { "Should not get AssistEvent.Message.Input type with text input" }
+                            val id = inputPlaceholderId
+                            inputPlaceholderId = null
+                            if (id != null) {
+                                _conversation[id] = AssistMessage(
+                                    message = event.message.trim(),
+                                    isInput = true,
+                                )
+                                outputPlaceholderId = _conversation.size
+                                _conversation.add(outputPlaceholderMessage)
+                            } else {
+                                Timber.e("No input place holder to populate input message: $event")
+                            }
+                        }
+
+                        is AssistEvent.Message.Output -> {
+                            val id = outputPlaceholderId
+                            outputPlaceholderId = null
+                            if (id != null) {
+                                _conversation[id] = AssistMessage(
+                                    message = event.message.trim(),
+                                    isInput = false,
+                                )
+                            } else {
+                                Timber.e("No output place holder to populate output message: $event")
+                            }
+                        }
+
+                        is AssistEvent.Message.Error -> {
+                            val id = outputPlaceholderId
+                            outputPlaceholderId = null
+                            if (id != null) {
+                                _conversation[id] = AssistMessage(
+                                    message = event.message.trim(),
+                                    isInput = false,
+                                    isError = true,
+                                )
+                            } else {
+                                Timber.e("No output place holder to populate error message: $event")
+                            }
                         }
                     }
                 }
+
                 is AssistEvent.MessageChunk -> {
-                    val lastMessage = _conversation.last()
-                    if (lastMessage == haPlaceholderMessage) {
-                        // Remove "…" message and add the chunk received
-                        _conversation.removeAt(_conversation.lastIndex)
-                        _conversation.add(lastMessage.copy(message = event.chunk))
+                    val id = outputPlaceholderId
+                    if (id != null) {
+                        if (_conversation[id] == outputPlaceholderMessage) {
+                            // Replace the placeholder message with the chunk received.
+                            _conversation[id] = AssistMessage(
+                                message = event.chunk,
+                                isInput = false,
+                            )
+                        } else {
+                            // Replace the placeholder message with the updated message with the new chunk append.
+                            _conversation[id] = AssistMessage(
+                                message = _conversation[id].message + event.chunk,
+                                isInput = false,
+                            )
+                        }
                     } else {
-                        // Replace last message with the updated message with the new chunk append
-                        _conversation[_conversation.lastIndex] =
-                            lastMessage.copy(message = lastMessage.message + event.chunk)
+                        Timber.e("No output place holder to populate output message chunk: $event")
                     }
                 }
             }
