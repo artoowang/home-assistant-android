@@ -356,11 +356,13 @@ class AssistRepositoryImpl @Inject constructor(
             flow?.collect {
                 when (it.type) {
                     AssistPipelineEventType.RUN_START -> {
+                        Timber.d("ZZZ: RUN_START")
                         if (!isVoice) return@collect
                         val data = (it.data as? AssistPipelineRunStart)?.runnerData
                         binaryHandlerId = data?.get("stt_binary_handler_id") as? Int
                     }
                     AssistPipelineEventType.STT_START -> {
+                        Timber.d("ZZZ: STT_START")
                         scope.launch {
                             // Make a snapshot of the recorderQueue, and clear it (so the future input will be sent
                             // straight to the remote). A snapshot is needed because the forEach loop below may stop in
@@ -382,17 +384,20 @@ class AssistRepositoryImpl @Inject constructor(
                         }
                     }
                     AssistPipelineEventType.STT_END -> {
+                        Timber.d("ZZZ: STT_END")
                         stopRecording(sendRecordedScope = scope)
                         (it.data as? AssistPipelineSttEnd)?.sttOutput?.let { response ->
                             onAssistEvent(AssistEvent.Message.Input(response["text"] as String))
                         }
                     }
                     AssistPipelineEventType.INTENT_PROGRESS -> {
+                        Timber.d("ZZZ: INTENT_PROGRESS: $it")
                         (it.data as? AssistPipelineIntentProgress)?.chatLogDelta?.content?.let { delta ->
                             onAssistEvent(AssistEvent.MessageChunk(delta))
                         }
                     }
                     AssistPipelineEventType.INTENT_END -> {
+                        Timber.d("ZZZ: INTENT_END: $it")
                         val data = (it.data as? AssistPipelineIntentEnd)?.intentOutput ?: return@collect
                         conversationId = data.conversationId
                         continueConversation.set(data.continueConversation)
@@ -401,6 +406,7 @@ class AssistRepositoryImpl @Inject constructor(
                         }
                     }
                     AssistPipelineEventType.TTS_END -> {
+                        Timber.d("ZZZ: TTS_END")
                         if (!isVoice) return@collect
                         scope.launch {
                             val audioPath = (it.data as? AssistPipelineTtsEnd)?.ttsOutput?.url
@@ -417,16 +423,20 @@ class AssistRepositoryImpl @Inject constructor(
                         }
                     }
                     AssistPipelineEventType.RUN_END -> {
+                        Timber.d("ZZZ: RUN_END")
                         stopRecording(sendRecordedScope = scope)
                         job?.cancel()
                     }
                     AssistPipelineEventType.ERROR -> {
+                        Timber.d("ZZZ: ERROR")
                         val errorMessage = (it.data as? AssistPipelineError)?.message ?: return@collect
                         onAssistEvent(AssistEvent.Message.Error(errorMessage))
                         stopRecording(sendRecordedScope = scope)
                         job?.cancel()
                     }
-                    else -> { /* Do nothing */ }
+                    else -> {
+                        Timber.d("ZZZ: Unhandled AssistPipelineEvent: ${it.type}")
+                    }
                 }
             } ?: run {
                 onAssistEvent(AssistEvent.Message.Output(application.getString(R.string.assist_error)))
