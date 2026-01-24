@@ -151,10 +151,20 @@ class AssistRepositoryImpl @Inject constructor(
     private val application: Application,
 ) : AssistRepository {
 
+    // Indicates the input modality used by assist.
+    enum class InputModality {
+        UNDETERMINED,
+        TEXT,
+        VOICE,
+    }
+
     private val _inputMode = mutableStateOf<InputMode?>(null)
     override val inputMode: State<InputMode?> = _inputMode
 
     override var selectedServerId = ServerManager.SERVER_ID_ACTIVE
+
+    // Indicates the current input modality selected through switchTo*().
+    private var inputModality: InputModality = InputModality.UNDETERMINED
 
     // Audio recorder states.
     private var recorderJob: Job? = null
@@ -240,6 +250,7 @@ class AssistRepositoryImpl @Inject constructor(
             return
         }
         setMode(InputMode.VOICE_INACTIVE)
+        inputModality = InputModality.VOICE
     }
 
     override fun switchToText(scope: CoroutineScope, textOnly: Boolean) {
@@ -259,6 +270,7 @@ class AssistRepositoryImpl @Inject constructor(
         } else {
             setMode(InputMode.TEXT)
         }
+        inputModality = InputModality.TEXT
     }
 
     override fun runAssistPipeline(
@@ -278,6 +290,7 @@ class AssistRepositoryImpl @Inject constructor(
             _conversation.add(AssistMessage("…", isInput = true))
         } else {
             _conversation.add(AssistMessage(text, isInput = true))
+            setMode(InputMode.WAITING)
         }
 
         // Placeholder Home Assistant response (i.e., "…") when we have the user input and are waiting for the response.
@@ -313,6 +326,7 @@ class AssistRepositoryImpl @Inject constructor(
                             } else {
                                 Timber.e("No input place holder to populate input message: $event")
                             }
+                            setMode(InputMode.WAITING)
                         }
 
                         is AssistEvent.Message.Output -> {
@@ -325,6 +339,20 @@ class AssistRepositoryImpl @Inject constructor(
                                 )
                             } else {
                                 Timber.e("No output place holder to populate output message: $event")
+                            }
+
+                            assert(_inputMode.value == InputMode.WAITING) {
+                                "InputMode should be WAITING when we received an output message."
+                            }
+                            when (inputModality) {
+                                // TODO: We should remove TEXT_ONLY, and provide another interface to indicate whether
+                                // voice is supported or not. This simplifies the state handling. For now, we just
+                                // assume mic is always supported so we go to TEXT instead of TEXT_ONLY.
+                                InputModality.TEXT -> setMode(InputMode.TEXT)
+                                InputModality.VOICE -> setMode(InputMode.VOICE_INACTIVE)
+                                InputModality.UNDETERMINED -> assert(false) {
+                                    "We should not receive any output before input modality is determined."
+                                }
                             }
                         }
 
@@ -479,6 +507,12 @@ class AssistRepositoryImpl @Inject constructor(
         assert(!audioRecorder.isRecording()) { "audioRecorder should not be recording before start recording" }
         assert(recorderQueue == null) { "recorderQueue should be null before start recording" }
         assert(recorderJob == null) { "recorderJob should be null before start recording" }
+        assert(
+            _inputMode.value == InputMode.VOICE_INACTIVE ||
+                _inputMode.value == InputMode.TEXT
+        ) {
+            "UX error: should only start recording from VOICE_INACTIVE or TEXT mode, but it is ${_inputMode.value}."
+        }
 
         val recordingStarted = try {
             audioRecorder.startRecording()

@@ -238,21 +238,35 @@ class AssistViewModel @Inject constructor(
             return
         }
 
-        if (inputMode == AssistRepository.InputMode.VOICE_ACTIVE) {
-            assistRepository.stopRecording(sendRecordedScope = viewModelScope)
-            return
-        }
+        when (inputMode) {
+            AssistRepository.InputMode.VOICE_ACTIVE -> {
+                assistRepository.stopRecording(sendRecordedScope = viewModelScope)
+            }
 
-        assistRepository.stopPlayback()
+            AssistRepository.InputMode.VOICE_INACTIVE -> {
+                assistRepository.stopPlayback()
 
-        val recordingStarted = try {
-            assistRepository.startRecording(viewModelScope)
-        } catch (e: Exception) {
-            Timber.e(e, "Exception while starting recording")
-            false
-        }
-        if (recordingStarted) {
-            runAssistPipeline(null)
+                val recordingStarted = try {
+                    assistRepository.startRecording(viewModelScope)
+                } catch (e: Exception) {
+                    Timber.e(e, "Exception while starting recording")
+                    false
+                }
+                if (recordingStarted) {
+                    runAssistPipeline(null)
+                }
+            }
+
+            AssistRepository.InputMode.WAITING -> {
+                // Do nothing when we are waiting for remote response.
+                Timber.d("ZZZ: onMicrophoneInput is disabled during InputMode.WAITING")
+                return
+            }
+
+            null, AssistRepository.InputMode.TEXT, AssistRepository.InputMode.TEXT_ONLY,
+            AssistRepository.InputMode.BLOCKED -> assert(false) {
+                "Should not trigger onMicrophoneInput() when input mode is $inputMode"
+            }
         }
     }
 

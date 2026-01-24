@@ -77,7 +77,6 @@ class GlassesViewModel @Inject constructor(
 
         when (inputMode.value) {
             // When voice assist is already active, we want to turn off the microphone.
-            // TODO: This needs some work, it does not seem to do what I expected.
             AssistRepository.InputMode.VOICE_ACTIVE -> {
                 assistRepository.stopRecording(sendRecordedScope = viewModelScope)
                 return
@@ -103,8 +102,15 @@ class GlassesViewModel @Inject constructor(
                 }
             }
 
-            // Otherwise, the microphone is not supported, and UI should not allow this to happen.
-            else -> assert(false) { "Should not trigger toggleMicrophone() when input mode is $inputMode" }
+            AssistRepository.InputMode.WAITING -> {
+                // Do nothing when we are waiting for remote response.
+                Timber.d("ZZZ: toggleMicrophone is disabled during InputMode.WAITING")
+            }
+
+            // Otherwise, the microphone is not used, and UI should not allow this to happen.
+            null, AssistRepository.InputMode.TEXT_ONLY, AssistRepository.InputMode.BLOCKED -> assert(false) {
+                "Should not trigger toggleMicrophone() when input mode is ${inputMode.value}"
+            }
         }
     }
 
