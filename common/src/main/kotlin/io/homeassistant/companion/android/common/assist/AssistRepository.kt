@@ -12,6 +12,7 @@ import dagger.hilt.components.SingletonComponent
 import io.homeassistant.companion.android.common.assist.AssistRepository.AssistEvent
 import io.homeassistant.companion.android.common.assist.AssistRepository.AssistState
 import io.homeassistant.companion.android.common.R
+import io.homeassistant.companion.android.common.assist.AssistRepository.InputModality
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineError
@@ -68,14 +69,26 @@ interface AssistRepository {
         BLOCKED,
     }
 
+    // Indicates the input modality used by assist.
+    enum class InputModality {
+        TEXT,
+        VOICE,
+    }
+
     // Assist state for Composable to react. null means the assist is not yet started.
     val assistState: State<AssistState?>
+
+    // Indicates the current input modality, or null if it hasn't been specified.
+    val inputModality: State<InputModality?>
 
     // The ID of the selected Home Assistant server.
     var selectedServerId: Int
 
     // True if the system has microphone support.
     val hasMicrophone: Boolean
+
+    // True if voice assist is supported.
+    val supportVoice: State<Boolean>
 
     // Read-only state of the list of messages.
     val conversation: List<AssistMessage>
@@ -102,6 +115,12 @@ interface AssistRepository {
     // multiple UIs (e.g., Assist sheet on the mobile, or UI from the glasses), and repeated request is a no-op.
     fun release()
 
+    // Sets the pipeline to use, and the initial input modality.
+    fun setPipeline(
+        pipeline: AssistPipelineResponse,
+        inputModality: InputModality
+    )
+
     // Clears pipeline related data.
     fun clearPipelineData()
 
@@ -112,14 +131,12 @@ interface AssistRepository {
     fun switchToText(textOnly: Boolean = false)
 
     /**
-     * @param text input to run an intent pipeline with, or `null` to run a STT pipeline (check if
+     * @param text input to run an intent pipeline with, or `null` to run an STT pipeline (check if
      * STT is supported _before_ calling this function)
-     * @param pipeline information about the pipeline, or `null` to use the server's default
      */
     fun runAssistPipeline(
         scope: CoroutineScope,
         text: String?,
-        pipeline: AssistPipelineResponse?,
     )
 
     // Starts audio recorder.
@@ -150,21 +167,13 @@ class AssistRepositoryImpl @Inject constructor(
     private val audioUrlPlayer: AudioUrlPlayer,
     private val application: Application,
 ) : AssistRepository {
-
-    // Indicates the input modality used by assist.
-    enum class InputModality {
-        UNDETERMINED,
-        TEXT,
-        VOICE,
-    }
-
     private val _assistState = mutableStateOf<AssistState?>(null)
     override val assistState: State<AssistState?> = _assistState
 
     override var selectedServerId = ServerManager.SERVER_ID_ACTIVE
 
-    // Indicates the current input modality selected through switchTo*().
-    private var inputModality: InputModality = InputModality.UNDETERMINED
+    private var _inputModality = mutableStateOf<InputModality?>(null)
+    override var inputModality = _inputModality
 
     // Audio recorder states.
     private var recorderJob: Job? = null
@@ -173,6 +182,9 @@ class AssistRepositoryImpl @Inject constructor(
     override val hasMicrophone by lazy {
         application.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
     }
+
+    private val _supportVoice = mutableStateOf(false)
+    override val supportVoice = _supportVoice
 
     private val _lastRecordedLevel = mutableStateOf<Float?>(null)
     override val lastRecordedLevel = _lastRecordedLevel
@@ -191,11 +203,19 @@ class AssistRepositoryImpl @Inject constructor(
     // -----------------------------------------------------------------------------------------------------------------
     // Pipeline data.
 
+    // Pipeline ID or null if no pipeline has been set.
+    private var pipelineId: String? = null
+
+    // True if the pipeline supports Text-to-speech.
+    private var pipelineHasTtsEngine = false
+
     // This is the ID of the STT binary handler. It is set at RUN_START. Later, at STT_START, we send all queued audio
     // data in `recorderQueue` to this binary handler, and delete the `recorderQueue`. All subsequent recording data
     // will then be sent straight to the binary handler.
     private var binaryHandlerId: Int? = null
     private var conversationId: String? = null
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     private var continueConversation = AtomicBoolean(false)
 
@@ -238,45 +258,66 @@ class AssistRepositoryImpl @Inject constructor(
         continueConversation.set(false)
     }
 
+    override fun setPipeline(
+        pipeline: AssistPipelineResponse,
+        inputModality: InputModality
+    ) {
+        assert(
+            _assistState.value == AssistState.WAITING ||
+            _assistState.value == AssistState.VOICE_INACTIVE ||
+            _assistState.value == AssistState.TEXT
+        ) {
+            "Pipeline should only be set at start, or when waiting for user input."
+        }
+
+        clearPipelineData()
+        pipelineId = pipeline.id
+        pipelineHasTtsEngine = pipeline.ttsEngine?.isNotBlank() == true
+        val pipelineHasSttEngine = pipeline.sttEngine?.isNotBlank() == true
+        _supportVoice.value = hasMicrophone && pipelineHasSttEngine
+
+        when (inputModality) {
+            InputModality.TEXT -> setState(AssistState.TEXT)
+            InputModality.VOICE -> setState(AssistState.VOICE_INACTIVE)
+        }
+        _inputModality.value = inputModality
+    }
+
     override fun clearPipelineData() {
+        pipelineId = null
+        pipelineHasTtsEngine = false
         binaryHandlerId = null
         conversationId = null
     }
 
     override fun switchToVoice() {
-        assert(_assistState.value != AssistState.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
-        if (_assistState.value == AssistState.VOICE_ACTIVE || _assistState.value == AssistState.VOICE_INACTIVE) {
-            Timber.w("Assist is already in voice mode: ${assistState.value}")
+        if (_inputModality.value == InputModality.VOICE) {
+            Timber.w("Assist is already in voice mode.")
             return
+        }
+        assert(_assistState.value == AssistState.TEXT) {
+            "Should only switch to voice input when waiting for text input."
         }
         setState(AssistState.VOICE_INACTIVE)
-        inputModality = InputModality.VOICE
+        _inputModality.value = InputModality.VOICE
     }
 
+    // TODO: Remove textOnly.
     override fun switchToText(textOnly: Boolean) {
-        assert(_assistState.value != AssistState.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
-        if (_assistState.value == AssistState.TEXT || _assistState.value == AssistState.TEXT_ONLY) {
-            Timber.w("Assist is already in text mode: ${assistState.value}")
+        if (_inputModality.value == InputModality.TEXT) {
+            Timber.w("Assist is already in text mode.")
             return
         }
-
-        if (_assistState.value == AssistState.VOICE_ACTIVE) {
-            // Stop the current recording (and discard the recorded data).
-            stopRecording()
+        assert(_assistState.value == AssistState.VOICE_INACTIVE) {
+            "Should only switch to text input when waiting for voice input."
         }
-
-        if (textOnly) {
-            setState(AssistState.TEXT_ONLY)
-        } else {
-            setState(AssistState.TEXT)
-        }
-        inputModality = InputModality.TEXT
+        setState(AssistState.TEXT)
+        _inputModality.value = InputModality.TEXT
     }
 
     override fun runAssistPipeline(
         scope: CoroutineScope,
         text: String?,
-        pipeline: AssistPipelineResponse?,
     ) {
         val isVoice = text == null
 
@@ -344,13 +385,13 @@ class AssistRepositoryImpl @Inject constructor(
                             assert(_assistState.value == AssistState.WAITING) {
                                 "InputMode should be WAITING when we received an output message."
                             }
-                            when (inputModality) {
+                            when (_inputModality.value) {
                                 // TODO: We should remove TEXT_ONLY, and provide another interface to indicate whether
                                 // voice is supported or not. This simplifies the state handling. For now, we just
                                 // assume mic is always supported so we go to TEXT instead of TEXT_ONLY.
                                 InputModality.TEXT -> setState(AssistState.TEXT)
                                 InputModality.VOICE -> setState(AssistState.VOICE_INACTIVE)
-                                InputModality.UNDETERMINED -> assert(false) {
+                                null -> assert(false) {
                                     "We should not receive any output before input modality is determined."
                                 }
                             }
@@ -397,17 +438,18 @@ class AssistRepositoryImpl @Inject constructor(
 
         var job: Job? = null
         job = scope.launch {
+            assert(pipelineId != null) { "Pipeline ID should be set before assist pipeline starts." }
             val flow = if (isVoice) {
                 serverManager.webSocketRepository(selectedServerId).runAssistPipelineForVoice(
                     sampleRate = AudioRecorder.SAMPLE_RATE,
-                    outputTts = pipeline?.ttsEngine?.isNotBlank() == true,
-                    pipelineId = pipeline?.id,
+                    outputTts = pipelineHasTtsEngine,
+                    pipelineId = pipelineId,
                     conversationId = conversationId,
                 )
             } else {
                 serverManager.integrationRepository(selectedServerId).getAssistResponse(
                     text = text,
-                    pipelineId = pipeline?.id,
+                    pipelineId = pipelineId,
                     conversationId = conversationId,
                 )
             }
@@ -507,11 +549,8 @@ class AssistRepositoryImpl @Inject constructor(
         assert(!audioRecorder.isRecording()) { "audioRecorder should not be recording before start recording" }
         assert(recorderQueue == null) { "recorderQueue should be null before start recording" }
         assert(recorderJob == null) { "recorderJob should be null before start recording" }
-        assert(
-            _assistState.value == AssistState.VOICE_INACTIVE ||
-                _assistState.value == AssistState.TEXT
-        ) {
-            "UX error: should only start recording from VOICE_INACTIVE or TEXT mode, but it is ${_assistState.value}."
+        assert(_assistState.value == AssistState.VOICE_INACTIVE) {
+            "UX error: should only start recording from VOICE_INACTIVE, but it is ${_assistState.value}."
         }
 
         val recordingStarted = try {

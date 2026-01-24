@@ -176,26 +176,29 @@ class AssistViewModel @Inject constructor(
         selectedPipeline =
             allPipelines[assistRepository.selectedServerId]?.firstOrNull { it.id == id }
                 ?: serverManager.webSocketRepository(assistRepository.selectedServerId).getAssistPipeline(id)
-        selectedPipeline?.let {
+        selectedPipeline?.let { pipeline ->
             currentPipeline = AssistUiPipeline(
                 serverId = assistRepository.selectedServerId,
                 serverName = serverManager.getServer(assistRepository.selectedServerId)?.friendlyName ?: "",
-                id = it.id,
-                name = it.name,
+                id = pipeline.id,
+                name = pipeline.name,
             )
-            serverManager.integrationRepository(assistRepository.selectedServerId).setLastUsedPipeline(it.id, it.sttEngine != null)
+            serverManager.integrationRepository(assistRepository.selectedServerId).setLastUsedPipeline(
+                pipeline.id,
+                pipeline.sttEngine != null)
 
             assistRepository.clearConversation()
-            assistRepository.clearPipelineData()
-            if (assistRepository.hasMicrophone && it.sttEngine != null) {
-                if (recorderAutoStart && (hasPermission || requestSilently)) {
-                    assistRepository.switchToVoice()
-                    onMicrophoneInput()
-                } else { // already requested permission once and was denied
-                    assistRepository.switchToText()
-                }
-            } else {
-                assistRepository.switchToText(textOnly = true)
+            if (recorderAutoStart && (hasPermission || requestSilently)) {
+                assistRepository.setPipeline(
+                    pipeline,
+                    inputModality = AssistRepository.InputModality.VOICE,
+                )
+                onMicrophoneInput()
+            } else { // already requested permission once and was denied
+                assistRepository.setPipeline(
+                    pipeline,
+                    inputModality = AssistRepository.InputModality.TEXT,
+                )
             }
         } ?: run {
             if (!id.isNullOrBlank()) {
@@ -275,7 +278,6 @@ class AssistViewModel @Inject constructor(
         assistRepository.runAssistPipeline(
             viewModelScope,
             text,
-            selectedPipeline,
         )
     }
 

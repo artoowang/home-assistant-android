@@ -28,9 +28,6 @@ class GlassesViewModel @Inject constructor(
     // The current list of messages in the conversation.
     val conversation: List<AssistMessage> = assistRepository.conversation
 
-    // The selected pipeline during startAssistAndRecording().
-    private var selectedPipeline: AssistPipelineResponse? = null
-
     // Starts the assist session and starts to record.
     fun startAssistAndRecording() {
         Timber.d("ZZZ: startAssistAndRecording, viewModel=$this")
@@ -43,30 +40,27 @@ class GlassesViewModel @Inject constructor(
         val activeServerId = ServerManager.SERVER_ID_ACTIVE
         assistRepository.selectedServerId = activeServerId
         assistRepository.clearConversation()
-        assistRepository.clearPipelineData()
-        assistRepository.switchToVoice()
 
-        assert(assistRepository.assistState.value == AssistRepository.AssistState.VOICE_INACTIVE) {
-            "Assist state should be VOICE_INACTIVE after the setup."
-        }
-
-        if ( try {
-            assistRepository.startRecording(viewModelScope)
-        } catch (e: Exception) {
-            Timber.e(e, "Exception while starting recording")
-            false
-        }) {
-            // Now starts a coroutine to get the pipeline info, and run the pipeline once we have the info.
-            viewModelScope.launch {
-                selectedPipeline = serverManager
-                    .webSocketRepository(activeServerId)
-                    .getAssistPipeline(pipelineId = null)
-                Timber.d("ZZZ: startAssist: pipeline=$selectedPipeline")
+        // Now starts a coroutine to get the pipeline info, and run the pipeline once we have the info.
+        viewModelScope.launch {
+            val pipeline = serverManager
+                .webSocketRepository(activeServerId)
+                .getAssistPipeline(pipelineId = null)
+            Timber.d("ZZZ: startAssistAndRecording: pipeline=$pipeline")
+            if (pipeline != null) {
+                assistRepository.setPipeline(
+                    pipeline,
+                    inputModality = AssistRepository.InputModality.VOICE,
+                )
+                // TODO: Handle failure
+                assistRepository.startRecording(viewModelScope)
                 assistRepository.runAssistPipeline(
                     viewModelScope,
                     text = null,  // Voice input.
-                    pipeline = selectedPipeline,
                 )
+            } else {
+                // TODO: we should handle the case when pipeline is null.
+                assert(false)
             }
         }
     }
@@ -86,20 +80,12 @@ class GlassesViewModel @Inject constructor(
             // we want to turn on the microphone.
             AssistRepository.AssistState.VOICE_INACTIVE, AssistRepository.AssistState.TEXT -> {
                 assistRepository.stopPlayback()
-                if (
-                    try {
-                        assistRepository.startRecording(viewModelScope)
-                    } catch (e: Exception) {
-                        Timber.e(e, "Exception while starting recording")
-                        false
-                    }
-                ) {
-                    assistRepository.runAssistPipeline(
-                        viewModelScope,
-                        text = null,  // Voice input.
-                        pipeline = selectedPipeline,
-                    )
-                }
+                // TODO: Handle failure
+                assistRepository.startRecording(viewModelScope)
+                assistRepository.runAssistPipeline(
+                    viewModelScope,
+                    text = null,  // Voice input.
+                )
             }
 
             AssistRepository.AssistState.WAITING -> {
@@ -120,6 +106,5 @@ class GlassesViewModel @Inject constructor(
         Timber.d("ZZZ: onCleared")
 
         assistRepository.release()
-        selectedPipeline = null
     }
 }
