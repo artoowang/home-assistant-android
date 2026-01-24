@@ -53,6 +53,8 @@ interface AssistRepository {
     }
 
     enum class InputMode {
+        // When the assist session is waiting for remote response. Input should be disabled in this mode.
+        WAITING,
         // For when the user is expected to type their request.
         TEXT,
         // Used when only text input is supported, for example, if the device has no microphone or the speech-to-text
@@ -205,9 +207,7 @@ class AssistRepositoryImpl @Inject constructor(
         assert(recorderJob == null) { "recorderJob should be null at init." }
 
         // Makes the mode leaves null to indicate the repository has initialized.
-        // TODO: We probably want another state to indicate the assist has started, but neither text nor voice is chosen
-        // yet.
-        setMode(InputMode.TEXT)
+        setMode(InputMode.WAITING)
     }
 
     override fun release() {

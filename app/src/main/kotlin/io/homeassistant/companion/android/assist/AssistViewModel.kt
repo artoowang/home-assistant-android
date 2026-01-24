@@ -210,13 +210,16 @@ class AssistViewModel @Inject constructor(
     // Called to switch between voice and text mode.
     fun onChangeInput() {
         when (inputMode) {
-            null, AssistRepository.InputMode.BLOCKED, AssistRepository.InputMode.TEXT_ONLY -> { /* Do nothing */ }
+            null, AssistRepository.InputMode.BLOCKED, AssistRepository.InputMode.TEXT_ONLY,
+            AssistRepository.InputMode.WAITING -> { /* Do nothing */ }
+
             AssistRepository.InputMode.TEXT -> {
                 assistRepository.switchToVoice()
                 if (hasPermission || requestSilently) {
                     onMicrophoneInput()
                 }
             }
+
             AssistRepository.InputMode.VOICE_ACTIVE, AssistRepository.InputMode.VOICE_INACTIVE -> {
                 assistRepository.switchToText(viewModelScope)
             }
