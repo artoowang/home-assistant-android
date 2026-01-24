@@ -98,14 +98,14 @@ class AssistActivity : BaseActivity() {
                 },
             )
 
-            // Starts a coroutine that monitors the input mode. When it becomes null, it means the sheet is closing,
-            // so we finish the activity. The input mode signal is backed by State<InputMode?>, which automatically
+            // Starts a coroutine that monitors the assist state. When it becomes null, it means the sheet is closing,
+            // so we finish the activity. The assist state signal is backed by State<AssistState?>, which automatically
             // de-duplicate repeated signals, so we won't get repeated it == null signals.
             lifecycleScope.launch {
-                snapshotFlow { viewModel.inputMode }
+                snapshotFlow { viewModel.assistState }
                     .filter { it == null }
                     .collect {
-                        Timber.d("ZZZ: Input mode is null, closing activity.")
+                        Timber.d("ZZZ: Assist State is null, closing activity.")
                         finish()
                     }
             }
@@ -125,7 +125,7 @@ class AssistActivity : BaseActivity() {
                 AssistSheetView(
                     conversation = viewModel.conversation,
                     pipelines = viewModel.pipelines,
-                    inputMode = viewModel.inputMode,
+                    assistState = viewModel.assistState,
                     lastRecordedLevel = viewModel.lastRecordedLevel,
                     fromFrontend = fromFrontend,
                     currentPipeline = viewModel.currentPipeline,

@@ -10,7 +10,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.homeassistant.companion.android.common.assist.AssistRepository.AssistEvent
-import io.homeassistant.companion.android.common.assist.AssistRepository.InputMode
+import io.homeassistant.companion.android.common.assist.AssistRepository.AssistState
 import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
@@ -52,7 +52,7 @@ interface AssistRepository {
         class MessageChunk(val chunk: String) : AssistEvent
     }
 
-    enum class InputMode {
+    enum class AssistState {
         // When the assist session is waiting for remote response. Input should be disabled in this mode.
         WAITING,
         // For when the user is expected to type their request.
@@ -60,7 +60,7 @@ interface AssistRepository {
         // Used when only text input is supported, for example, if the device has no microphone or the speech-to-text
         // service is unavailable. In this mode, there won't be button to switch to voice input.
         TEXT_ONLY,
-        // The voice input mode is ready but not currently listening.
+        // The voice assist state is ready but not currently listening.
         VOICE_INACTIVE,
         // The microphone is actively listening for the user's voice command.
         VOICE_ACTIVE,
@@ -68,8 +68,8 @@ interface AssistRepository {
         BLOCKED,
     }
 
-    // Input mode state for Composable to react. null means the assist is not yet started.
-    val inputMode: State<InputMode?>
+    // Assist state for Composable to react. null means the assist is not yet started.
+    val assistState: State<AssistState?>
 
     // The ID of the selected Home Assistant server.
     var selectedServerId: Int
@@ -158,8 +158,8 @@ class AssistRepositoryImpl @Inject constructor(
         VOICE,
     }
 
-    private val _inputMode = mutableStateOf<InputMode?>(null)
-    override val inputMode: State<InputMode?> = _inputMode
+    private val _assistState = mutableStateOf<AssistState?>(null)
+    override val assistState: State<AssistState?> = _assistState
 
     override var selectedServerId = ServerManager.SERVER_ID_ACTIVE
 
@@ -207,7 +207,7 @@ class AssistRepositoryImpl @Inject constructor(
 
     override fun init() {
         Timber.d("ZZZ: init")
-        if (_inputMode.value != null) {
+        if (_assistState.value != null) {
             Timber.i("Assist has already initialized. Ignored re-initialization.")
             return
         }
@@ -217,12 +217,12 @@ class AssistRepositoryImpl @Inject constructor(
         assert(recorderJob == null) { "recorderJob should be null at init." }
 
         // Makes the mode leaves null to indicate the repository has initialized.
-        setMode(InputMode.WAITING)
+        setState(AssistState.WAITING)
     }
 
     override fun release() {
         Timber.d("ZZZ: release")
-        if (_inputMode.value == null) {
+        if (_assistState.value == null) {
             Timber.i("Assist has already released. Ignored re-release.")
             return
         }
@@ -230,8 +230,8 @@ class AssistRepositoryImpl @Inject constructor(
         stopRecording()
         stopPlayback()
 
-        // Returns to null input model to indicate the repository has been released.
-        setMode(null)
+        // Returns to null assist state to indicate the repository has been released.
+        setState(null)
         selectedServerId = ServerManager.SERVER_ID_ACTIVE
         clearPipelineData()
         clearConversation()
@@ -244,31 +244,31 @@ class AssistRepositoryImpl @Inject constructor(
     }
 
     override fun switchToVoice() {
-        assert(_inputMode.value != InputMode.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
-        if (_inputMode.value == InputMode.VOICE_ACTIVE || _inputMode.value == InputMode.VOICE_INACTIVE) {
-            Timber.w("Assist is already in voice mode: ${inputMode.value}")
+        assert(_assistState.value != AssistState.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
+        if (_assistState.value == AssistState.VOICE_ACTIVE || _assistState.value == AssistState.VOICE_INACTIVE) {
+            Timber.w("Assist is already in voice mode: ${assistState.value}")
             return
         }
-        setMode(InputMode.VOICE_INACTIVE)
+        setState(AssistState.VOICE_INACTIVE)
         inputModality = InputModality.VOICE
     }
 
     override fun switchToText(scope: CoroutineScope, textOnly: Boolean) {
-        assert(_inputMode.value != InputMode.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
-        if (_inputMode.value == InputMode.TEXT || _inputMode.value == InputMode.TEXT_ONLY) {
-            Timber.w("Assist is already in text mode: ${inputMode.value}")
+        assert(_assistState.value != AssistState.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
+        if (_assistState.value == AssistState.TEXT || _assistState.value == AssistState.TEXT_ONLY) {
+            Timber.w("Assist is already in text mode: ${assistState.value}")
             return
         }
 
-        if (_inputMode.value == InputMode.VOICE_ACTIVE) {
+        if (_assistState.value == AssistState.VOICE_ACTIVE) {
             // Stop the current recording (and discard the recorded data).
             stopRecording()
         }
 
         if (textOnly) {
-            setMode(InputMode.TEXT_ONLY)
+            setState(AssistState.TEXT_ONLY)
         } else {
-            setMode(InputMode.TEXT)
+            setState(AssistState.TEXT)
         }
         inputModality = InputModality.TEXT
     }
@@ -290,7 +290,7 @@ class AssistRepositoryImpl @Inject constructor(
             _conversation.add(AssistMessage("…", isInput = true))
         } else {
             _conversation.add(AssistMessage(text, isInput = true))
-            setMode(InputMode.WAITING)
+            setState(AssistState.WAITING)
         }
 
         // Placeholder Home Assistant response (i.e., "…") when we have the user input and are waiting for the response.
@@ -326,7 +326,7 @@ class AssistRepositoryImpl @Inject constructor(
                             } else {
                                 Timber.e("No input place holder to populate input message: $event")
                             }
-                            setMode(InputMode.WAITING)
+                            setState(AssistState.WAITING)
                         }
 
                         is AssistEvent.Message.Output -> {
@@ -341,15 +341,15 @@ class AssistRepositoryImpl @Inject constructor(
                                 Timber.e("No output place holder to populate output message: $event")
                             }
 
-                            assert(_inputMode.value == InputMode.WAITING) {
+                            assert(_assistState.value == AssistState.WAITING) {
                                 "InputMode should be WAITING when we received an output message."
                             }
                             when (inputModality) {
                                 // TODO: We should remove TEXT_ONLY, and provide another interface to indicate whether
                                 // voice is supported or not. This simplifies the state handling. For now, we just
                                 // assume mic is always supported so we go to TEXT instead of TEXT_ONLY.
-                                InputModality.TEXT -> setMode(InputMode.TEXT)
-                                InputModality.VOICE -> setMode(InputMode.VOICE_INACTIVE)
+                                InputModality.TEXT -> setState(AssistState.TEXT)
+                                InputModality.VOICE -> setState(AssistState.VOICE_INACTIVE)
                                 InputModality.UNDETERMINED -> assert(false) {
                                     "We should not receive any output before input modality is determined."
                                 }
@@ -508,10 +508,10 @@ class AssistRepositoryImpl @Inject constructor(
         assert(recorderQueue == null) { "recorderQueue should be null before start recording" }
         assert(recorderJob == null) { "recorderJob should be null before start recording" }
         assert(
-            _inputMode.value == InputMode.VOICE_INACTIVE ||
-                _inputMode.value == InputMode.TEXT
+            _assistState.value == AssistState.VOICE_INACTIVE ||
+                _assistState.value == AssistState.TEXT
         ) {
-            "UX error: should only start recording from VOICE_INACTIVE or TEXT mode, but it is ${_inputMode.value}."
+            "UX error: should only start recording from VOICE_INACTIVE or TEXT mode, but it is ${_assistState.value}."
         }
 
         val recordingStarted = try {
@@ -549,7 +549,7 @@ class AssistRepositoryImpl @Inject constructor(
                 recorderQueue?.add(it) ?: sendVoiceData(scope, it)
             }
         }
-        setMode(InputMode.VOICE_ACTIVE)
+        setState(AssistState.VOICE_ACTIVE)
         return true
     }
 
@@ -575,12 +575,12 @@ class AssistRepositoryImpl @Inject constructor(
     }
 
     override fun stopRecording(sendRecordedScope: CoroutineScope?) {
-        if (_inputMode.value != InputMode.VOICE_ACTIVE) {
+        if (_assistState.value != AssistState.VOICE_ACTIVE) {
             // No action needed. Let's check for error condition, but not try to fix them.
             assert(!audioRecorder.isRecording()) {
-                "audioRecorder should not be recording in input mode ${_inputMode.value}"
+                "audioRecorder should not be recording in assist state ${_assistState.value}"
             }
-            assert(recorderJob == null) { "There should be no recorderJob in input mode ${_inputMode.value}" }
+            assert(recorderJob == null) { "There should be no recorderJob in assist state ${_assistState.value}" }
             return
         }
 
@@ -604,16 +604,16 @@ class AssistRepositoryImpl @Inject constructor(
         recorderQueue = null
         binaryHandlerId = null
         _lastRecordedLevel.value = null
-        setMode(InputMode.VOICE_INACTIVE)
+        setState(AssistState.VOICE_INACTIVE)
     }
 
     override fun stopPlayback() = audioUrlPlayer.stop()
 
     override fun markBlocked(errorMsg: String) {
-        assert(_inputMode.value != InputMode.VOICE_ACTIVE) {
+        assert(_assistState.value != AssistState.VOICE_ACTIVE) {
             "Assist function should be blocked before it starts to record."
         }
-        setMode(InputMode.BLOCKED)
+        setState(AssistState.BLOCKED)
         _conversation.clear()
         addErrorMessage(errorMsg)
     }
@@ -627,10 +627,10 @@ class AssistRepositoryImpl @Inject constructor(
         _conversation.add(AssistMessage(message, isInput = false, isError = true))
     }
 
-    // Sets the desired input mode. See AssistantRepository.InputMode.
-    private fun setMode(mode: InputMode?) {
-        Timber.d("Input mode changed: ${inputMode.value} -> $mode")
-        _inputMode.value = mode
+    // Sets the desired assist state. See AssistantRepository.AssistState.
+    private fun setState(assistState: AssistState?) {
+        Timber.d("Assist state changed: ${_assistState.value} -> $assistState")
+        _assistState.value = assistState
     }
 }
 

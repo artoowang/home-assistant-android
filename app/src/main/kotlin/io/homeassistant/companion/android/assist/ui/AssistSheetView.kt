@@ -1,11 +1,5 @@
 package io.homeassistant.companion.android.assist.ui
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -89,7 +83,7 @@ private val CONTROLS_HEIGHT = 112.dp
 fun AssistSheetView(
     conversation: List<AssistMessage>,
     pipelines: List<AssistUiPipeline>,
-    inputMode: AssistRepository.InputMode?,
+    assistState: AssistRepository.AssistState?,
     lastRecordedLevel: Float?,
     currentPipeline: AssistUiPipeline?,
     fromFrontend: Boolean,
@@ -152,7 +146,7 @@ fun AssistSheetView(
                         }
                     }
                     AssistSheetControls(
-                        inputMode,
+                        assistState,
                         // `lastRecordedLevel` should be available when the mic is active, but if not, fallback to 0.
                         lastRecordedLevel ?: 0.0f,
                         onChangeInput,
@@ -241,32 +235,32 @@ fun AssistSheetHeader(
 
 @Composable
 fun AssistSheetControls(
-    inputMode: AssistRepository.InputMode?,
+    assistState: AssistRepository.AssistState?,
     lastRecordedLevel: Float,
     onChangeInput: () -> Unit,
     onTextInput: (String) -> Unit,
     onMicrophoneInput: () -> Unit,
 ) = Row(verticalAlignment = Alignment.CenterVertically) {
-    if (inputMode == null) { // Pipeline info has not yet loaded, empty space for now
+    if (assistState == null) { // Pipeline info has not yet loaded, empty space for now
         Spacer(modifier = Modifier.height(64.dp))
         return
     }
 
-    if (inputMode == AssistRepository.InputMode.BLOCKED) { // No info and not recoverable, no space
+    if (assistState == AssistRepository.AssistState.BLOCKED) { // No info and not recoverable, no space
         return
     }
 
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(inputMode) {
-        if (inputMode == AssistRepository.InputMode.TEXT ||
-            inputMode == AssistRepository.InputMode.TEXT_ONLY
+    LaunchedEffect(assistState) {
+        if (assistState == AssistRepository.AssistState.TEXT ||
+            assistState == AssistRepository.AssistState.TEXT_ONLY
         ) {
             focusRequester.requestFocus()
         }
     }
 
-    if (inputMode == AssistRepository.InputMode.TEXT ||
-        inputMode == AssistRepository.InputMode.TEXT_ONLY
+    if (assistState == AssistRepository.AssistState.TEXT ||
+        assistState == AssistRepository.AssistState.TEXT_ONLY
     ) {
         var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
             mutableStateOf(TextFieldValue())
@@ -292,13 +286,13 @@ fun AssistSheetControls(
                 if (text.text.isNotBlank()) {
                     onTextInput(text.text)
                     text = TextFieldValue("")
-                } else if (inputMode != AssistRepository.InputMode.TEXT_ONLY) {
+                } else if (assistState != AssistRepository.AssistState.TEXT_ONLY) {
                     onChangeInput()
                 }
             },
-            enabled = (inputMode != AssistRepository.InputMode.TEXT_ONLY || text.text.isNotBlank()),
+            enabled = (assistState != AssistRepository.AssistState.TEXT_ONLY || text.text.isNotBlank()),
         ) {
-            val inputIsSend = text.text.isNotBlank() || inputMode == AssistRepository.InputMode.TEXT_ONLY
+            val inputIsSend = text.text.isNotBlank() || assistState == AssistRepository.AssistState.TEXT_ONLY
             Image(
                 asset = if (inputIsSend) CommunityMaterial.Icon3.cmd_send else CommunityMaterial.Icon3.cmd_microphone,
                 contentDescription = stringResource(
@@ -315,7 +309,7 @@ fun AssistSheetControls(
             modifier = Modifier.size(64.dp),
             contentAlignment = Alignment.Center,
         ) {
-            val inputIsActive = inputMode == AssistRepository.InputMode.VOICE_ACTIVE
+            val inputIsActive = assistState == AssistRepository.AssistState.VOICE_ACTIVE
             if (inputIsActive) {
                 // TODO: Remove the original animation if not needed.
 //                val transition = rememberInfiniteTransition()

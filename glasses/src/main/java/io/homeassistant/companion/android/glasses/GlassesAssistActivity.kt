@@ -21,18 +21,18 @@ class GlassesAssistActivity : ComponentActivity() {
         viewModel.startAssistAndRecording()
         setContent {
             GlimmerTheme {
-                val inputMode = viewModel.inputMode.value
-                if (inputMode != null) {
+                val assistState = viewModel.assistState.value
+                if (assistState != null) {
                     VoiceAssistScreen(
                         micState = buildMicState(
-                            inputMode = inputMode,
+                            assistState = assistState,
                             lastRecordedLevel = viewModel.lastRecordedLevel
                         ),
                         conversation = viewModel.conversation,
                         toggleMicrophone = { viewModel.toggleMicrophone() },
                     )
                 } else {
-                    assert(false) { "Input mode should be non-null at this point." }
+                    assert(false) { "Assist state should be non-null at this point." }
                 }
             }
         }
@@ -56,12 +56,12 @@ class GlassesAssistActivity : ComponentActivity() {
     // Builds the MicState for UI.
     // TODO: This is to practice separating ViewModel states from UI / Composable states.
     private fun buildMicState(
-        inputMode: AssistRepository.InputMode,
+        assistState: AssistRepository.AssistState,
         lastRecordedLevel: Float?,
     ): MicState? {
-        return when (inputMode) {
-            // Mic is recording and shows last recorded level when input mode is VOICE_ACTIVE.
-            AssistRepository.InputMode.VOICE_ACTIVE -> {
+        return when (assistState) {
+            // Mic is recording and shows last recorded level when assist state is VOICE_ACTIVE.
+            AssistRepository.AssistState.VOICE_ACTIVE -> {
                 MicState(
                     recording = true,
                     // If there is no last recorded level available, it means the first mic sample has not yet arrived, or
@@ -69,8 +69,8 @@ class GlassesAssistActivity : ComponentActivity() {
                     lastRecordedLevel = lastRecordedLevel ?: 0.0f,
                 )
             }
-            // Mic is not recording and shows 0 level when input mode is VOICE_INACTIVE.
-            AssistRepository.InputMode.VOICE_INACTIVE -> MicState(
+            // Mic is not recording and shows 0 level when assist state is VOICE_INACTIVE.
+            AssistRepository.AssistState.VOICE_INACTIVE -> MicState(
                 recording = false,
                 lastRecordedLevel = 0.0f,
             )

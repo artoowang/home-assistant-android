@@ -18,8 +18,8 @@ class GlassesViewModel @Inject constructor(
     private val assistRepository: AssistRepository,
 ) : ViewModel() {
 
-    // The current input mode, or null if the assist is not yet started.
-    val inputMode = assistRepository.inputMode
+    // The current assist state, or null if the assist is not yet started.
+    val assistState = assistRepository.assistState
 
     // The audio level of the last recorded voice input, normalized to a value between 0.0f and 1.0f. null if the mic is
     // not currently recording.
@@ -46,8 +46,8 @@ class GlassesViewModel @Inject constructor(
         assistRepository.clearPipelineData()
         assistRepository.switchToVoice()
 
-        assert(assistRepository.inputMode.value == AssistRepository.InputMode.VOICE_INACTIVE) {
-            "Input mode should be VOICE_INACTIVE after the setup."
+        assert(assistRepository.assistState.value == AssistRepository.AssistState.VOICE_INACTIVE) {
+            "Assist state should be VOICE_INACTIVE after the setup."
         }
 
         if ( try {
@@ -71,20 +71,20 @@ class GlassesViewModel @Inject constructor(
         }
     }
 
-    // Toggles the microphone on or off based on the current input mode.
+    // Toggles the microphone on or off based on the current state.
     fun toggleMicrophone() {
         Timber.d("ZZZ: toggleMicrophone")
 
-        when (inputMode.value) {
+        when (assistState.value) {
             // When voice assist is already active, we want to turn off the microphone.
-            AssistRepository.InputMode.VOICE_ACTIVE -> {
+            AssistRepository.AssistState.VOICE_ACTIVE -> {
                 assistRepository.stopRecording(sendRecordedScope = viewModelScope)
                 return
             }
 
             // When voice assist is not active, or if we are currently using text input (but voice assist is supported),
             // we want to turn on the microphone.
-            AssistRepository.InputMode.VOICE_INACTIVE, AssistRepository.InputMode.TEXT -> {
+            AssistRepository.AssistState.VOICE_INACTIVE, AssistRepository.AssistState.TEXT -> {
                 assistRepository.stopPlayback()
                 if (
                     try {
@@ -102,14 +102,14 @@ class GlassesViewModel @Inject constructor(
                 }
             }
 
-            AssistRepository.InputMode.WAITING -> {
+            AssistRepository.AssistState.WAITING -> {
                 // Do nothing when we are waiting for remote response.
                 Timber.d("ZZZ: toggleMicrophone is disabled during InputMode.WAITING")
             }
 
             // Otherwise, the microphone is not used, and UI should not allow this to happen.
-            null, AssistRepository.InputMode.TEXT_ONLY, AssistRepository.InputMode.BLOCKED -> assert(false) {
-                "Should not trigger toggleMicrophone() when input mode is ${inputMode.value}"
+            null, AssistRepository.AssistState.TEXT_ONLY, AssistRepository.AssistState.BLOCKED -> assert(false) {
+                "Should not trigger toggleMicrophone() when assist state is ${assistState.value}"
             }
         }
     }

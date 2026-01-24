@@ -48,7 +48,7 @@ class AssistViewModel @Inject constructor(
     var currentPipeline by mutableStateOf<AssistUiPipeline?>(null)
         private set
 
-    val inputMode by assistRepository.inputMode
+    val assistState by assistRepository.assistState
 
     var userCanManagePipelines by mutableStateOf(false)
         private set
@@ -120,11 +120,11 @@ class AssistViewModel @Inject constructor(
             intent.action in
             listOf(Intent.ACTION_ASSIST, "android.intent.action.VOICE_ASSIST", Intent.ACTION_VOICE_COMMAND)
         ) {
-            if (!lockedMatches && inputMode != AssistRepository.InputMode.BLOCKED) {
+            if (!lockedMatches && assistState != AssistRepository.AssistState.BLOCKED) {
                 assistRepository.clearConversation()
             }
-            if (inputMode == AssistRepository.InputMode.VOICE_ACTIVE ||
-                    inputMode == AssistRepository.InputMode.VOICE_INACTIVE) {
+            if (assistState == AssistRepository.AssistState.VOICE_ACTIVE ||
+                    assistState == AssistRepository.AssistState.VOICE_INACTIVE) {
                 onMicrophoneInput()
             }
         }
@@ -209,18 +209,18 @@ class AssistViewModel @Inject constructor(
 
     // Called to switch between voice and text mode.
     fun onChangeInput() {
-        when (inputMode) {
-            null, AssistRepository.InputMode.BLOCKED, AssistRepository.InputMode.TEXT_ONLY,
-            AssistRepository.InputMode.WAITING -> { /* Do nothing */ }
+        when (assistState) {
+            null, AssistRepository.AssistState.BLOCKED, AssistRepository.AssistState.TEXT_ONLY,
+            AssistRepository.AssistState.WAITING -> { /* Do nothing */ }
 
-            AssistRepository.InputMode.TEXT -> {
+            AssistRepository.AssistState.TEXT -> {
                 assistRepository.switchToVoice()
                 if (hasPermission || requestSilently) {
                     onMicrophoneInput()
                 }
             }
 
-            AssistRepository.InputMode.VOICE_ACTIVE, AssistRepository.InputMode.VOICE_INACTIVE -> {
+            AssistRepository.AssistState.VOICE_ACTIVE, AssistRepository.AssistState.VOICE_INACTIVE -> {
                 assistRepository.switchToText(viewModelScope)
             }
         }
@@ -238,12 +238,12 @@ class AssistViewModel @Inject constructor(
             return
         }
 
-        when (inputMode) {
-            AssistRepository.InputMode.VOICE_ACTIVE -> {
+        when (assistState) {
+            AssistRepository.AssistState.VOICE_ACTIVE -> {
                 assistRepository.stopRecording(sendRecordedScope = viewModelScope)
             }
 
-            AssistRepository.InputMode.VOICE_INACTIVE -> {
+            AssistRepository.AssistState.VOICE_INACTIVE -> {
                 assistRepository.stopPlayback()
 
                 val recordingStarted = try {
@@ -257,15 +257,15 @@ class AssistViewModel @Inject constructor(
                 }
             }
 
-            AssistRepository.InputMode.WAITING -> {
+            AssistRepository.AssistState.WAITING -> {
                 // Do nothing when we are waiting for remote response.
-                Timber.d("ZZZ: onMicrophoneInput is disabled during InputMode.WAITING")
+                Timber.d("ZZZ: onMicrophoneInput is disabled during AssistState.WAITING")
                 return
             }
 
-            null, AssistRepository.InputMode.TEXT, AssistRepository.InputMode.TEXT_ONLY,
-            AssistRepository.InputMode.BLOCKED -> assert(false) {
-                "Should not trigger onMicrophoneInput() when input mode is $inputMode"
+            null, AssistRepository.AssistState.TEXT, AssistRepository.AssistState.TEXT_ONLY,
+            AssistRepository.AssistState.BLOCKED -> assert(false) {
+                "Should not trigger onMicrophoneInput() when assist state is $assistState"
             }
         }
     }
