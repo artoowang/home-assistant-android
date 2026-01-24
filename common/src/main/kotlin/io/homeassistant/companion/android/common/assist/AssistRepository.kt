@@ -109,7 +109,7 @@ interface AssistRepository {
     fun switchToVoice()
 
     // Changes assist to text mode. Set `textOnly` to true to indicate voice assist mode is not supported.
-    fun switchToText(scope: CoroutineScope, textOnly: Boolean = false)
+    fun switchToText(textOnly: Boolean = false)
 
     /**
      * @param text input to run an intent pipeline with, or `null` to run a STT pipeline (check if
@@ -253,7 +253,7 @@ class AssistRepositoryImpl @Inject constructor(
         inputModality = InputModality.VOICE
     }
 
-    override fun switchToText(scope: CoroutineScope, textOnly: Boolean) {
+    override fun switchToText(textOnly: Boolean) {
         assert(_assistState.value != AssistState.BLOCKED) { "Cannot switch to voice assit since assist is blocked." }
         if (_assistState.value == AssistState.TEXT || _assistState.value == AssistState.TEXT_ONLY) {
             Timber.w("Assist is already in text mode: ${assistState.value}")

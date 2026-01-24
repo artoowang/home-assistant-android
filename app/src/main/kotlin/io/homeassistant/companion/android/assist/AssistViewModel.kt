@@ -192,10 +192,10 @@ class AssistViewModel @Inject constructor(
                     assistRepository.switchToVoice()
                     onMicrophoneInput()
                 } else { // already requested permission once and was denied
-                    assistRepository.switchToText(viewModelScope)
+                    assistRepository.switchToText()
                 }
             } else {
-                assistRepository.switchToText(viewModelScope, textOnly = true)
+                assistRepository.switchToText(textOnly = true)
             }
         } ?: run {
             if (!id.isNullOrBlank()) {
@@ -221,7 +221,7 @@ class AssistViewModel @Inject constructor(
             }
 
             AssistRepository.AssistState.VOICE_ACTIVE, AssistRepository.AssistState.VOICE_INACTIVE -> {
-                assistRepository.switchToText(viewModelScope)
+                assistRepository.switchToText()
             }
         }
     }
@@ -293,7 +293,7 @@ class AssistViewModel @Inject constructor(
                 onMicrophoneInput()
             }
         } else if (requestSilently && pipelineReady) { // Don't notify the user if they haven't explicitly requested
-            assistRepository.switchToText(viewModelScope)
+            assistRepository.switchToText()
         } else if (!requestSilently) {
             assistRepository.addErrorMessage(application.getString(commonR.string.assist_permission))
         }
