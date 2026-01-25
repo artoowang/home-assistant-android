@@ -76,16 +76,15 @@ class AssistViewModel @Inject constructor(
 
         viewModelScope.launch {
             if (!serverManager.isRegistered()) {
-                assistRepository.markBlocked(application.getString(commonR.string.not_registered))
+                assistRepository.terminate(application.getString(commonR.string.not_registered))
                 return@launch
             }
 
             val supported = checkSupport()
-            if (supported != true) assistRepository.stopRecording(sendRecordedScope = viewModelScope)
             if (supported == null) { // Couldn't get config
-                assistRepository.markBlocked(application.getString(commonR.string.assist_connnect))
+                assistRepository.terminate(application.getString(commonR.string.assist_connnect))
             } else if (!supported) { // Core too old or doesn't include assist pipeline
-                assistRepository.markBlocked(application.getString(
+                assistRepository.terminate(application.getString(
                     commonR.string.no_assist_support,
                     "2023.5",
                     application.getString(commonR.string.no_assist_support_assist_pipeline),
@@ -165,11 +164,15 @@ class AssistViewModel @Inject constructor(
     }
 
     fun changePipeline(serverId: Int, id: String) = viewModelScope.launch {
+        assert(
+            assistRepository.assistState.value == AssistRepository.AssistState.TEXT ||
+            assistRepository.assistState.value == AssistRepository.AssistState.VOICE_INACTIVE
+        ) {
+            "UI error: changing pipeline should only be allowed when waiting for user input."
+        }
+
         if (serverId == assistRepository.selectedServerId && id == selectedPipeline?.id) return@launch
-
-        assistRepository.stopRecording()
         assistRepository.stopPlayback()
-
         assistRepository.selectedServerId = serverId
         setPipeline(id)
     }
@@ -207,7 +210,7 @@ class AssistViewModel @Inject constructor(
                 setPipeline(null) // Try falling back to default pipeline
             } else {
                 Timber.w("Server ${assistRepository.selectedServerId} does not have any pipelines")
-                assistRepository.markBlocked(application.getString(commonR.string.assist_error))
+                assistRepository.terminate(application.getString(commonR.string.assist_error))
             }
         }
     }
@@ -250,7 +253,7 @@ class AssistViewModel @Inject constructor(
 
         when (assistState) {
             AssistRepository.AssistState.VOICE_ACTIVE -> {
-                assistRepository.stopRecording(sendRecordedScope = viewModelScope)
+                assistRepository.finishRecordingAndProcessIntent(viewModelScope)
             }
 
             AssistRepository.AssistState.VOICE_INACTIVE -> {

@@ -64,7 +64,8 @@ interface AssistRepository {
         VOICE_ACTIVE,
         // The user input is now being processed and we are waiting for the response.
         INTENT_PROCESSING,
-        // The assist feature is unavailable, for instance, if the app is not registered with a Home Assistant server.
+        // TODO: Rename to TERMINATED
+        // The assist session has been terminated. The session won't be able to resume after this.
         BLOCKED,
     }
 
@@ -126,6 +127,7 @@ interface AssistRepository {
     // Changes assist to voice mode.
     fun switchToVoice()
 
+    // TODO: Remove textOnly
     // Changes assist to text mode. Set `textOnly` to true to indicate voice assist mode is not supported.
     fun switchToText(textOnly: Boolean = false)
 
@@ -141,15 +143,16 @@ interface AssistRepository {
     // Starts audio recorder.
     fun startRecording(scope: CoroutineScope): Boolean
 
-    // Stops audio recorder. By default this discards all remaining audio data. To send those to the remote, provide
-    // `sendRecordedScope`.
-    fun stopRecording(sendRecordedScope: CoroutineScope? = null)
+    // Finishes audio recording (including sending the remaining data using the provided `scope`). Enters
+    // INTENT_PROCESSING state.
+    fun finishRecordingAndProcessIntent(scope: CoroutineScope)
 
     // Stops audio playback.
     fun stopPlayback()
 
-    // Marks the assist is blocked and cannot function. `errorMsg` will be shown in the conversation.
-    fun markBlocked(errorMsg: String)
+    // Terminates the assist session. The session won't be able to resume after this. An optional `errorMsg` can be used
+    // to provide the reason / error.
+    fun terminate(errorMsg: String? = null)
 
     // Clears the conversation.
     fun clearConversation()
@@ -174,10 +177,6 @@ class AssistRepositoryImpl @Inject constructor(
     private var _inputModality = mutableStateOf<InputModality?>(null)
     override var inputModality = _inputModality
 
-    // Audio recorder states.
-    private var recorderJob: Job? = null
-    private var recorderQueue: MutableList<ByteArray>? = null
-
     override val hasMicrophone by lazy {
         application.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
     }
@@ -185,8 +184,20 @@ class AssistRepositoryImpl @Inject constructor(
     private val _supportVoice = mutableStateOf(false)
     override val supportVoice = _supportVoice
 
+    // -----------------------------------------------------------------------------------------------------------------
+    // Speech-to-text.
+
+    // This is the ID of the STT binary handler. It is set at RUN_START. Later, at STT_START, we send all queued audio
+    // data in `recorderQueue` to this binary handler, and delete the `recorderQueue`. All subsequent recording data
+    // will then be sent straight to the binary handler.
+    private var binaryHandlerId: Int? = null
+
     private val _lastRecordedLevel = mutableStateOf<Float?>(null)
     override val lastRecordedLevel = _lastRecordedLevel
+
+    // Audio recorder states.
+    private var recorderJob: Job? = null
+    private var recorderQueue: MutableList<ByteArray>? = null
 
     // -----------------------------------------------------------------------------------------------------------------
     // Conversation messages.
@@ -208,10 +219,6 @@ class AssistRepositoryImpl @Inject constructor(
     // True if the pipeline supports Text-to-speech.
     private var pipelineHasTtsEngine = false
 
-    // This is the ID of the STT binary handler. It is set at RUN_START. Later, at STT_START, we send all queued audio
-    // data in `recorderQueue` to this binary handler, and delete the `recorderQueue`. All subsequent recording data
-    // will then be sent straight to the binary handler.
-    private var binaryHandlerId: Int? = null
     private var conversationId: String? = null
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -246,7 +253,7 @@ class AssistRepositoryImpl @Inject constructor(
             return
         }
 
-        stopRecording()
+        terminate()
         stopPlayback()
 
         // Returns to null assist state to indicate the repository has been released.
@@ -285,7 +292,6 @@ class AssistRepositoryImpl @Inject constructor(
     override fun clearPipelineData() {
         pipelineId = null
         pipelineHasTtsEngine = false
-        binaryHandlerId = null
         conversationId = null
     }
 
@@ -366,7 +372,6 @@ class AssistRepositoryImpl @Inject constructor(
                             } else {
                                 Timber.e("No input place holder to populate input message: $event")
                             }
-                            setState(AssistState.INTENT_PROCESSING)
                         }
 
                         is AssistEvent.Message.Output -> {
@@ -482,7 +487,7 @@ class AssistRepositoryImpl @Inject constructor(
                     }
                     AssistPipelineEventType.STT_END -> {
                         Timber.d("ZZZ: STT_END")
-                        stopRecording(sendRecordedScope = scope)
+                        finishRecordingAndProcessIntent(scope)
                         (it.data as? AssistPipelineSttEnd)?.sttOutput?.let { response ->
                             onAssistEvent(AssistEvent.Message.Input(response["text"] as String))
                         }
@@ -521,14 +526,14 @@ class AssistRepositoryImpl @Inject constructor(
                     }
                     AssistPipelineEventType.RUN_END -> {
                         Timber.d("ZZZ: RUN_END")
-                        stopRecording(sendRecordedScope = scope)
+                        ensureVoiceInputStopped()
                         job?.cancel()
                     }
                     AssistPipelineEventType.ERROR -> {
                         Timber.d("ZZZ: ERROR")
                         val errorMessage = (it.data as? AssistPipelineError)?.message ?: return@collect
                         onAssistEvent(AssistEvent.Message.Error(errorMessage))
-                        stopRecording(sendRecordedScope = scope)
+                        ensureVoiceInputStopped()
                         job?.cancel()
                     }
                     else -> {
@@ -557,7 +562,7 @@ class AssistRepositoryImpl @Inject constructor(
         }
         if (!recordingStarted) {
             addErrorMessage(application.getString(R.string.assist_error))
-            return false;
+            return false
         }
 
         recorderQueue = mutableListOf()
@@ -609,48 +614,49 @@ class AssistRepositoryImpl @Inject constructor(
         } ?: false
     }
 
-    override fun stopRecording(sendRecordedScope: CoroutineScope?) {
-        if (_assistState.value != AssistState.VOICE_ACTIVE) {
-            // No action needed. Let's check for error condition, but not try to fix them.
-            assert(!audioRecorder.isRecording()) {
-                "audioRecorder should not be recording in assist state ${_assistState.value}"
-            }
-            assert(recorderJob == null) { "There should be no recorderJob in assist state ${_assistState.value}" }
+    override fun finishRecordingAndProcessIntent(scope: CoroutineScope) {
+        // No-op if we are already processing the intent. This can happen if we start the intent processing manually
+        // before STT_END is received.
+        if (_assistState.value == AssistState.INTENT_PROCESSING) {
             return
+        }
+
+        assert(_assistState.value == AssistState.VOICE_ACTIVE) {
+            "We should only finish recording and process intent when in VOICE_ACTIVE state, but it is " +
+            "${_assistState.value}."
         }
 
         audioRecorder.stopRecording()
         recorderJob?.cancel()
         recorderJob = null
-        if (sendRecordedScope != null) {
-            if (binaryHandlerId != null) {
-                // TODO: This is actually launching a coroutine to iterate through the queue, which lauches new
-                // coroutines for each recording. Is this desired or necessary?
-                sendRecordedScope.launch {
-                    recorderQueue?.forEach {
-                        sendVoiceData(sendRecordedScope, it)
-                    }
-                    sendVoiceData(sendRecordedScope, byteArrayOf()) // Empty message to indicate end of recording
+        if (binaryHandlerId != null) {
+            // TODO: This is actually launching a coroutine to iterate through the queue, which launches new coroutines
+            // for each recording. Is this desired or necessary?
+            scope.launch {
+                recorderQueue?.forEach {
+                    sendVoiceData(scope, it)
                 }
-            } else {
-                Timber.w("Ignore sending the remaining data at stop recording: no binary handler ID.")
+                sendVoiceData(scope, byteArrayOf()) // Empty message to indicate end of recording
             }
+        } else {
+            Timber.w("Ignore sending the remaining data at stop recording: no binary handler ID.")
         }
         recorderQueue = null
         binaryHandlerId = null
         _lastRecordedLevel.value = null
-        setState(AssistState.VOICE_INACTIVE)
+        setState(AssistState.INTENT_PROCESSING)
     }
 
     override fun stopPlayback() = audioUrlPlayer.stop()
 
-    override fun markBlocked(errorMsg: String) {
-        assert(_assistState.value != AssistState.VOICE_ACTIVE) {
-            "Assist function should be blocked before it starts to record."
-        }
+    override fun terminate(errorMsg: String?) {
+        // TODO: Rename to TERMINATED
+        // TODO: Make sure all recording and jobs are stopped.
         setState(AssistState.BLOCKED)
         _conversation.clear()
-        addErrorMessage(errorMsg)
+        if (errorMsg != null) {
+            addErrorMessage(errorMsg)
+        }
     }
 
     override fun clearConversation() {
@@ -666,6 +672,49 @@ class AssistRepositoryImpl @Inject constructor(
     private fun setState(assistState: AssistState?) {
         Timber.d("Assist state changed: ${_assistState.value} -> $assistState")
         _assistState.value = assistState
+    }
+
+    // Ensures the voice input is stopped. This is used in exception states, e.g.:
+    // - When we receive AssistPipelineEventType.RUN_END, but the previous events did not properly stop the voice input.
+    // - When we receive AssistPipelineEventType.ERROR, which can happen at arbitrary places.
+    // This checks for the voice input related fields, and stops / cleans up them if needed.
+    private fun ensureVoiceInputStopped() {
+        if (audioRecorder.isRecording()) {
+            Timber.w("Voice input is still recording. Stopping it.")
+            audioRecorder.stopRecording()
+        }
+
+        val job = recorderJob
+        recorderJob = null
+        if (job != null) {
+            Timber.w("Recorder job is still running. Stopping it.")
+            job.cancel()
+        }
+
+        recorderQueue = null
+        binaryHandlerId = null
+        _lastRecordedLevel.value = null
+
+        // Finally, move to the proper "waiting for user input" state based on the selected modality.
+        when (_inputModality.value) {
+            InputModality.TEXT -> {
+                if (_assistState.value != AssistState.TEXT) {
+                    Timber.w("Assist state should be TEXT, but it is ${_assistState.value}.")
+                    setState(AssistState.TEXT)
+                }
+            }
+
+            InputModality.VOICE -> {
+                if (_assistState.value != AssistState.VOICE_INACTIVE) {
+                    Timber.w("Assist state should be VOICE_INACTIVE, but it is ${_assistState.value}.")
+                    setState(AssistState.VOICE_INACTIVE)
+                }
+            }
+
+            null -> assert(false) {
+                "Input modality should have been specified before we reach here."
+            }
+        }
     }
 }
 
