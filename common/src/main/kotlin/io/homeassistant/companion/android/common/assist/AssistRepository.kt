@@ -58,9 +58,6 @@ interface AssistRepository {
         WAITING,
         // For when the user is expected to type their request.
         TEXT,
-        // Used when only text input is supported, for example, if the device has no microphone or the speech-to-text
-        // service is unavailable. In this mode, there won't be button to switch to voice input.
-        TEXT_ONLY,
         // The voice assist state is ready but not currently listening.
         VOICE_INACTIVE,
         // The microphone is actively listening for the user's voice command.
@@ -386,9 +383,6 @@ class AssistRepositoryImpl @Inject constructor(
                                 "InputMode should be WAITING when we received an output message."
                             }
                             when (_inputModality.value) {
-                                // TODO: We should remove TEXT_ONLY, and provide another interface to indicate whether
-                                // voice is supported or not. This simplifies the state handling. For now, we just
-                                // assume mic is always supported so we go to TEXT instead of TEXT_ONLY.
                                 InputModality.TEXT -> setState(AssistState.TEXT)
                                 InputModality.VOICE -> setState(AssistState.VOICE_INACTIVE)
                                 null -> assert(false) {

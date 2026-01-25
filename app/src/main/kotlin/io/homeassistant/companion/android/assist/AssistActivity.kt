@@ -126,6 +126,7 @@ class AssistActivity : BaseActivity() {
                     conversation = viewModel.conversation,
                     pipelines = viewModel.pipelines,
                     assistState = viewModel.assistState,
+                    supportVoice = viewModel.supportVoice,
                     lastRecordedLevel = viewModel.lastRecordedLevel,
                     fromFrontend = fromFrontend,
                     currentPipeline = viewModel.currentPipeline,

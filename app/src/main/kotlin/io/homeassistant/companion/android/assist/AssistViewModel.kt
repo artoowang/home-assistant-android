@@ -50,6 +50,8 @@ class AssistViewModel @Inject constructor(
 
     val assistState by assistRepository.assistState
 
+    val supportVoice by assistRepository.supportVoice
+
     var userCanManagePipelines by mutableStateOf(false)
         private set
 
@@ -213,10 +215,13 @@ class AssistViewModel @Inject constructor(
     // Called to switch between voice and text mode.
     fun onChangeInput() {
         when (assistState) {
-            null, AssistRepository.AssistState.BLOCKED, AssistRepository.AssistState.TEXT_ONLY,
+            null, AssistRepository.AssistState.BLOCKED,
             AssistRepository.AssistState.WAITING -> { /* Do nothing */ }
 
             AssistRepository.AssistState.TEXT -> {
+                assert(assistRepository.supportVoice.value) {
+                    "UI should not allow change input when voice is not supported"
+                }
                 assistRepository.switchToVoice()
                 if (hasPermission || requestSilently) {
                     onMicrophoneInput()
@@ -266,7 +271,7 @@ class AssistViewModel @Inject constructor(
                 return
             }
 
-            null, AssistRepository.AssistState.TEXT, AssistRepository.AssistState.TEXT_ONLY,
+            null, AssistRepository.AssistState.TEXT,
             AssistRepository.AssistState.BLOCKED -> assert(false) {
                 "Should not trigger onMicrophoneInput() when assist state is $assistState"
             }

@@ -84,6 +84,7 @@ fun AssistSheetView(
     conversation: List<AssistMessage>,
     pipelines: List<AssistUiPipeline>,
     assistState: AssistRepository.AssistState?,
+    supportVoice: Boolean,
     lastRecordedLevel: Float?,
     currentPipeline: AssistUiPipeline?,
     fromFrontend: Boolean,
@@ -147,6 +148,7 @@ fun AssistSheetView(
                     }
                     AssistSheetControls(
                         assistState,
+                        supportVoice,
                         // `lastRecordedLevel` should be available when the mic is active, but if not, fallback to 0.
                         lastRecordedLevel ?: 0.0f,
                         onChangeInput,
@@ -236,6 +238,7 @@ fun AssistSheetHeader(
 @Composable
 fun AssistSheetControls(
     assistState: AssistRepository.AssistState?,
+    supportVoice: Boolean,
     lastRecordedLevel: Float,
     onChangeInput: () -> Unit,
     onTextInput: (String) -> Unit,
@@ -252,16 +255,12 @@ fun AssistSheetControls(
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(assistState) {
-        if (assistState == AssistRepository.AssistState.TEXT ||
-            assistState == AssistRepository.AssistState.TEXT_ONLY
-        ) {
+        if (assistState == AssistRepository.AssistState.TEXT) {
             focusRequester.requestFocus()
         }
     }
 
-    if (assistState == AssistRepository.AssistState.TEXT ||
-        assistState == AssistRepository.AssistState.TEXT_ONLY
-    ) {
+    if (assistState == AssistRepository.AssistState.TEXT) {
         var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
             mutableStateOf(TextFieldValue())
         }
@@ -286,13 +285,13 @@ fun AssistSheetControls(
                 if (text.text.isNotBlank()) {
                     onTextInput(text.text)
                     text = TextFieldValue("")
-                } else if (assistState != AssistRepository.AssistState.TEXT_ONLY) {
+                } else if (supportVoice) {
                     onChangeInput()
                 }
             },
-            enabled = (assistState != AssistRepository.AssistState.TEXT_ONLY || text.text.isNotBlank()),
+            enabled = (supportVoice || text.text.isNotBlank()),
         ) {
-            val inputIsSend = text.text.isNotBlank() || assistState == AssistRepository.AssistState.TEXT_ONLY
+            val inputIsSend = text.text.isNotBlank() || !supportVoice
             Image(
                 asset = if (inputIsSend) CommunityMaterial.Icon3.cmd_send else CommunityMaterial.Icon3.cmd_microphone,
                 contentDescription = stringResource(
