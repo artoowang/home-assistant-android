@@ -54,14 +54,16 @@ interface AssistRepository {
     }
 
     enum class AssistState {
-        // When the assist session is waiting for remote response. Input should be disabled in this mode.
-        WAITING,
+        // When the assist session is waiting for pipeline to be set up. Input should be disabled in this mode.
+        PIPELINE_PENDING,
         // For when the user is expected to type their request.
         TEXT,
         // The voice assist state is ready but not currently listening.
         VOICE_INACTIVE,
         // The microphone is actively listening for the user's voice command.
         VOICE_ACTIVE,
+        // The user input is now being processed and we are waiting for the response.
+        INTENT_PROCESSING,
         // The assist feature is unavailable, for instance, if the app is not registered with a Home Assistant server.
         BLOCKED,
     }
@@ -234,7 +236,7 @@ class AssistRepositoryImpl @Inject constructor(
         assert(recorderJob == null) { "recorderJob should be null at init." }
 
         // Makes the mode leaves null to indicate the repository has initialized.
-        setState(AssistState.WAITING)
+        setState(AssistState.PIPELINE_PENDING)
     }
 
     override fun release() {
@@ -260,7 +262,7 @@ class AssistRepositoryImpl @Inject constructor(
         inputModality: InputModality
     ) {
         assert(
-            _assistState.value == AssistState.WAITING ||
+            _assistState.value == AssistState.PIPELINE_PENDING ||
             _assistState.value == AssistState.VOICE_INACTIVE ||
             _assistState.value == AssistState.TEXT
         ) {
@@ -328,7 +330,7 @@ class AssistRepositoryImpl @Inject constructor(
             _conversation.add(AssistMessage("…", isInput = true))
         } else {
             _conversation.add(AssistMessage(text, isInput = true))
-            setState(AssistState.WAITING)
+            setState(AssistState.INTENT_PROCESSING)
         }
 
         // Placeholder Home Assistant response (i.e., "…") when we have the user input and are waiting for the response.
@@ -364,7 +366,7 @@ class AssistRepositoryImpl @Inject constructor(
                             } else {
                                 Timber.e("No input place holder to populate input message: $event")
                             }
-                            setState(AssistState.WAITING)
+                            setState(AssistState.INTENT_PROCESSING)
                         }
 
                         is AssistEvent.Message.Output -> {
@@ -379,8 +381,8 @@ class AssistRepositoryImpl @Inject constructor(
                                 Timber.e("No output place holder to populate output message: $event")
                             }
 
-                            assert(_assistState.value == AssistState.WAITING) {
-                                "InputMode should be WAITING when we received an output message."
+                            assert(_assistState.value == AssistState.INTENT_PROCESSING) {
+                                "InputMode should be INTENT_PROCESSING when we received an output message."
                             }
                             when (_inputModality.value) {
                                 InputModality.TEXT -> setState(AssistState.TEXT)

@@ -7,7 +7,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.common.assist.AssistRepository
 import io.homeassistant.companion.android.common.data.servers.ServerManager
-import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineResponse
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -88,9 +87,9 @@ class GlassesViewModel @Inject constructor(
                 )
             }
 
-            AssistRepository.AssistState.WAITING -> {
+            AssistRepository.AssistState.PIPELINE_PENDING, AssistRepository.AssistState.INTENT_PROCESSING -> {
                 // Do nothing when we are waiting for remote response.
-                Timber.d("ZZZ: toggleMicrophone is disabled during InputMode.WAITING")
+                Timber.d("ZZZ: toggleMicrophone is disabled during PIPELINE_PENDING and INTENT_PROCESSING")
             }
 
             // Otherwise, the microphone is not used, and UI should not allow this to happen.

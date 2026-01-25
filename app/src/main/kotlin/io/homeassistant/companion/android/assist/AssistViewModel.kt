@@ -215,8 +215,10 @@ class AssistViewModel @Inject constructor(
     // Called to switch between voice and text mode.
     fun onChangeInput() {
         when (assistState) {
-            null, AssistRepository.AssistState.BLOCKED,
-            AssistRepository.AssistState.WAITING -> { /* Do nothing */ }
+            null, AssistRepository.AssistState.BLOCKED, AssistRepository.AssistState.PIPELINE_PENDING,
+            AssistRepository.AssistState.INTENT_PROCESSING -> {
+                /* Do nothing */
+            }
 
             AssistRepository.AssistState.TEXT -> {
                 assert(assistRepository.supportVoice.value) {
@@ -265,9 +267,9 @@ class AssistViewModel @Inject constructor(
                 }
             }
 
-            AssistRepository.AssistState.WAITING -> {
+            AssistRepository.AssistState.PIPELINE_PENDING, AssistRepository.AssistState.INTENT_PROCESSING -> {
                 // Do nothing when we are waiting for remote response.
-                Timber.d("ZZZ: onMicrophoneInput is disabled during AssistState.WAITING")
+                Timber.d("ZZZ: onMicrophoneInput is disabled during PIPELINE_PENDING and INTENT_PROCESSING")
                 return
             }
 
