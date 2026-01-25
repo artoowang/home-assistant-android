@@ -258,16 +258,7 @@ class AssistViewModel @Inject constructor(
 
             AssistRepository.AssistState.VOICE_INACTIVE -> {
                 assistRepository.stopPlayback()
-
-                val recordingStarted = try {
-                    assistRepository.startRecording(viewModelScope)
-                } catch (e: Exception) {
-                    Timber.e(e, "Exception while starting recording")
-                    false
-                }
-                if (recordingStarted) {
-                    runAssistPipeline(null)
-                }
+                runAssistPipeline()
             }
 
             AssistRepository.AssistState.PIPELINE_PENDING, AssistRepository.AssistState.INTENT_PROCESSING -> {
@@ -283,7 +274,7 @@ class AssistViewModel @Inject constructor(
         }
     }
 
-    private fun runAssistPipeline(text: String?) {
+    private fun runAssistPipeline(text: String = "") {
         Timber.i("ZZZ: runAssistPipeline: $text")
         assistRepository.runAssistPipeline(
             viewModelScope,

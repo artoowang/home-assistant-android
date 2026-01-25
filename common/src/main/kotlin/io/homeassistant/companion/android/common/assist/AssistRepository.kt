@@ -129,17 +129,11 @@ interface AssistRepository {
     // Changes assist to text mode.
     fun switchToText()
 
-    /**
-     * @param text input to run an intent pipeline with, or `null` to run an STT pipeline (check if
-     * STT is supported _before_ calling this function)
-     */
+    // Runs the assist pipeline. `text` is the user input when input modality is TEXT. Otherwise, it is ignored.
     fun runAssistPipeline(
         scope: CoroutineScope,
-        text: String?,
+        text: String = "",
     )
-
-    // Starts audio recorder.
-    fun startRecording(scope: CoroutineScope): Boolean
 
     // Finishes audio recording (including sending the remaining data using the provided `scope`). Enters
     // INTENT_PROCESSING state.
@@ -319,9 +313,16 @@ class AssistRepositoryImpl @Inject constructor(
 
     override fun runAssistPipeline(
         scope: CoroutineScope,
-        text: String?,
+        text: String,
     ) {
-        val isVoice = text == null
+        val isVoice = _inputModality.value == InputModality.VOICE
+
+        if (isVoice) {
+            if (!startRecording(scope)) {
+                Timber.e("Failed to start recording. Cannot run assist pipeline with voice input.")
+                return
+            }
+        }
 
         stopPlayback()
 
@@ -543,53 +544,6 @@ class AssistRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun startRecording(scope: CoroutineScope): Boolean {
-        assert(!audioRecorder.isRecording()) { "audioRecorder should not be recording before start recording" }
-        assert(recorderQueue == null) { "recorderQueue should be null before start recording" }
-        assert(recorderJob == null) { "recorderJob should be null before start recording" }
-        assert(_assistState.value == AssistState.VOICE_INACTIVE) {
-            "UX error: should only start recording from VOICE_INACTIVE, but it is ${_assistState.value}."
-        }
-
-        val recordingStarted = try {
-            audioRecorder.startRecording()
-        } catch (e: Exception) {
-            Timber.e(e, "Exception while starting recording")
-            false
-        }
-        if (!recordingStarted) {
-            addErrorMessage(application.getString(R.string.assist_error))
-            return false
-        }
-
-        recorderQueue = mutableListOf()
-        recorderJob = scope.launch {
-            audioRecorder.audioBytes.collect {
-                var sumOfAbsValues = 0.0f
-                val sampleCount = it.size / 2
-                for (i in 0 until sampleCount) {
-                    val byteIndex = i * 2
-                    val lsb = it[byteIndex].toInt() and 0xFF
-                    val msb = it[byteIndex + 1].toInt()
-                    val sample = ((msb shl 8) or lsb).toShort()
-                    sumOfAbsValues += kotlin.math.abs(sample.toFloat())
-                }
-                val meanAbsValue = (sumOfAbsValues / sampleCount) / 65536.0f
-                _lastRecordedLevel.value = kotlin.math.sqrt(meanAbsValue)
-
-                // Audio data is handled in 2 different states:
-                // 1) Buffering state: When recording starts, we still need to wait for the Home Assistant server to
-                //    tell us where to stream the audio data. During this period, recorderQueue exists to buffer the
-                //    data.
-                // 2) Streaming State (recorderQueue is null): Once the server provides the info, we send all the
-                //    buffered audio from recorderQueue, and send new data directly to the server.
-                recorderQueue?.add(it) ?: sendVoiceData(scope, it)
-            }
-        }
-        setState(AssistState.VOICE_ACTIVE)
-        return true
-    }
-
     private fun sendVoiceData(scope: CoroutineScope, data: ByteArray) {
         binaryHandlerId?.let {
             scope.launch {
@@ -713,6 +667,56 @@ class AssistRepositoryImpl @Inject constructor(
                 "Input modality should have been specified before we reach here."
             }
         }
+    }
+
+    // Sets up STT data and starts audio recording.
+    private fun startRecording(scope: CoroutineScope): Boolean {
+        assert(!audioRecorder.isRecording()) { "audioRecorder should not be recording before start recording" }
+        assert(recorderQueue == null) { "recorderQueue should be null before start recording" }
+        assert(recorderJob == null) { "recorderJob should be null before start recording" }
+        assert(_assistState.value == AssistState.VOICE_INACTIVE) {
+            "UX error: should only start recording from VOICE_INACTIVE, but it is ${_assistState.value}."
+        }
+        assert(_inputModality.value == InputModality.VOICE) { "Should only start recording for voice input." }
+        assert(_supportVoice.value) { "Should only start recording when voice assist is supported." }
+
+        val recordingStarted = try {
+            audioRecorder.startRecording()
+        } catch (e: Exception) {
+            Timber.e(e, "Exception while starting recording")
+            false
+        }
+        if (!recordingStarted) {
+            addErrorMessage(application.getString(R.string.assist_error))
+            return false
+        }
+
+        recorderQueue = mutableListOf()
+        recorderJob = scope.launch {
+            audioRecorder.audioBytes.collect {
+                var sumOfAbsValues = 0.0f
+                val sampleCount = it.size / 2
+                for (i in 0 until sampleCount) {
+                    val byteIndex = i * 2
+                    val lsb = it[byteIndex].toInt() and 0xFF
+                    val msb = it[byteIndex + 1].toInt()
+                    val sample = ((msb shl 8) or lsb).toShort()
+                    sumOfAbsValues += kotlin.math.abs(sample.toFloat())
+                }
+                val meanAbsValue = (sumOfAbsValues / sampleCount) / 65536.0f
+                _lastRecordedLevel.value = kotlin.math.sqrt(meanAbsValue)
+
+                // Audio data is handled in 2 different states:
+                // 1) Buffering state: When recording starts, we still need to wait for the Home Assistant server to
+                //    tell us where to stream the audio data. During this period, recorderQueue exists to buffer the
+                //    data.
+                // 2) Streaming State (recorderQueue is null): Once the server provides the info, we send all the
+                //    buffered audio from recorderQueue, and send new data directly to the server.
+                recorderQueue?.add(it) ?: sendVoiceData(scope, it)
+            }
+        }
+        setState(AssistState.VOICE_ACTIVE)
+        return true
     }
 }
 

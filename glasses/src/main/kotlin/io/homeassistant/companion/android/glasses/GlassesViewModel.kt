@@ -51,12 +51,7 @@ class GlassesViewModel @Inject constructor(
                     pipeline,
                     inputModality = AssistRepository.InputModality.VOICE,
                 )
-                // TODO: Handle failure
-                assistRepository.startRecording(viewModelScope)
-                assistRepository.runAssistPipeline(
-                    viewModelScope,
-                    text = null,  // Voice input.
-                )
+                assistRepository.runAssistPipeline(viewModelScope)
             } else {
                 // TODO: we should handle the case when pipeline is null.
                 assert(false)
@@ -79,12 +74,7 @@ class GlassesViewModel @Inject constructor(
             // we want to turn on the microphone.
             AssistRepository.AssistState.VOICE_INACTIVE, AssistRepository.AssistState.TEXT -> {
                 assistRepository.stopPlayback()
-                // TODO: Handle failure
-                assistRepository.startRecording(viewModelScope)
-                assistRepository.runAssistPipeline(
-                    viewModelScope,
-                    text = null,  // Voice input.
-                )
+                assistRepository.runAssistPipeline(viewModelScope)
             }
 
             AssistRepository.AssistState.PIPELINE_PENDING, AssistRepository.AssistState.INTENT_PROCESSING -> {
