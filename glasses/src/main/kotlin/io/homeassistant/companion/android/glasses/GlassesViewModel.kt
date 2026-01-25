@@ -93,7 +93,7 @@ class GlassesViewModel @Inject constructor(
             }
 
             // Otherwise, the microphone is not used, and UI should not allow this to happen.
-            null, AssistRepository.AssistState.BLOCKED -> assert(false) {
+            null, AssistRepository.AssistState.TERMINATED -> assert(false) {
                 "Should not trigger toggleMicrophone() when assist state is ${assistState.value}"
             }
         }

@@ -64,9 +64,8 @@ interface AssistRepository {
         VOICE_ACTIVE,
         // The user input is now being processed and we are waiting for the response.
         INTENT_PROCESSING,
-        // TODO: Rename to TERMINATED
         // The assist session has been terminated. The session won't be able to resume after this.
-        BLOCKED,
+        TERMINATED,
     }
 
     // Indicates the input modality used by assist.
@@ -127,9 +126,8 @@ interface AssistRepository {
     // Changes assist to voice mode.
     fun switchToVoice()
 
-    // TODO: Remove textOnly
-    // Changes assist to text mode. Set `textOnly` to true to indicate voice assist mode is not supported.
-    fun switchToText(textOnly: Boolean = false)
+    // Changes assist to text mode.
+    fun switchToText()
 
     /**
      * @param text input to run an intent pipeline with, or `null` to run an STT pipeline (check if
@@ -307,8 +305,7 @@ class AssistRepositoryImpl @Inject constructor(
         _inputModality.value = InputModality.VOICE
     }
 
-    // TODO: Remove textOnly.
-    override fun switchToText(textOnly: Boolean) {
+    override fun switchToText() {
         if (_inputModality.value == InputModality.TEXT) {
             Timber.w("Assist is already in text mode.")
             return
@@ -626,9 +623,6 @@ class AssistRepositoryImpl @Inject constructor(
             "${_assistState.value}."
         }
 
-        audioRecorder.stopRecording()
-        recorderJob?.cancel()
-        recorderJob = null
         if (binaryHandlerId != null) {
             // TODO: This is actually launching a coroutine to iterate through the queue, which launches new coroutines
             // for each recording. Is this desired or necessary?
@@ -641,18 +635,15 @@ class AssistRepositoryImpl @Inject constructor(
         } else {
             Timber.w("Ignore sending the remaining data at stop recording: no binary handler ID.")
         }
-        recorderQueue = null
-        binaryHandlerId = null
-        _lastRecordedLevel.value = null
+        resetVoiceInputData()
         setState(AssistState.INTENT_PROCESSING)
     }
 
     override fun stopPlayback() = audioUrlPlayer.stop()
 
     override fun terminate(errorMsg: String?) {
-        // TODO: Rename to TERMINATED
-        // TODO: Make sure all recording and jobs are stopped.
-        setState(AssistState.BLOCKED)
+        setState(AssistState.TERMINATED)
+        resetVoiceInputData()
         _conversation.clear()
         if (errorMsg != null) {
             addErrorMessage(errorMsg)
@@ -674,26 +665,33 @@ class AssistRepositoryImpl @Inject constructor(
         _assistState.value = assistState
     }
 
+    // Resets STT related fields back to their initial state, ready for the next use.
+    private fun resetVoiceInputData() {
+        audioRecorder.stopRecording()
+        recorderJob?.cancel()
+        recorderJob = null
+        recorderQueue = null
+        binaryHandlerId = null
+        _lastRecordedLevel.value = null
+    }
+
+    // Checks and reports warning if any STT related tasks are still running.
+    private fun checkVoiceInputStopped() {
+        if (audioRecorder.isRecording()) {
+            Timber.w("Voice input is still recording. Stopping it.")
+        }
+        if (recorderJob != null) {
+            Timber.w("Recorder job is still running. Stopping it.")
+        }
+    }
+
     // Ensures the voice input is stopped. This is used in exception states, e.g.:
     // - When we receive AssistPipelineEventType.RUN_END, but the previous events did not properly stop the voice input.
     // - When we receive AssistPipelineEventType.ERROR, which can happen at arbitrary places.
     // This checks for the voice input related fields, and stops / cleans up them if needed.
     private fun ensureVoiceInputStopped() {
-        if (audioRecorder.isRecording()) {
-            Timber.w("Voice input is still recording. Stopping it.")
-            audioRecorder.stopRecording()
-        }
-
-        val job = recorderJob
-        recorderJob = null
-        if (job != null) {
-            Timber.w("Recorder job is still running. Stopping it.")
-            job.cancel()
-        }
-
-        recorderQueue = null
-        binaryHandlerId = null
-        _lastRecordedLevel.value = null
+        checkVoiceInputStopped()
+        resetVoiceInputData()
 
         // Finally, move to the proper "waiting for user input" state based on the selected modality.
         when (_inputModality.value) {

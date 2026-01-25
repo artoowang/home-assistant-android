@@ -249,7 +249,7 @@ fun AssistSheetControls(
         return
     }
 
-    if (assistState == AssistRepository.AssistState.BLOCKED) { // No info and not recoverable, no space
+    if (assistState == AssistRepository.AssistState.TERMINATED) { // No info and not recoverable, no space
         return
     }
 

@@ -121,7 +121,7 @@ class AssistViewModel @Inject constructor(
             intent.action in
             listOf(Intent.ACTION_ASSIST, "android.intent.action.VOICE_ASSIST", Intent.ACTION_VOICE_COMMAND)
         ) {
-            if (!lockedMatches && assistState != AssistRepository.AssistState.BLOCKED) {
+            if (!lockedMatches && assistState != AssistRepository.AssistState.TERMINATED) {
                 assistRepository.clearConversation()
             }
             if (assistState == AssistRepository.AssistState.VOICE_ACTIVE ||
@@ -218,7 +218,7 @@ class AssistViewModel @Inject constructor(
     // Called to switch between voice and text mode.
     fun onChangeInput() {
         when (assistState) {
-            null, AssistRepository.AssistState.BLOCKED, AssistRepository.AssistState.PIPELINE_PENDING,
+            null, AssistRepository.AssistState.TERMINATED, AssistRepository.AssistState.PIPELINE_PENDING,
             AssistRepository.AssistState.INTENT_PROCESSING -> {
                 /* Do nothing */
             }
@@ -277,7 +277,7 @@ class AssistViewModel @Inject constructor(
             }
 
             null, AssistRepository.AssistState.TEXT,
-            AssistRepository.AssistState.BLOCKED -> assert(false) {
+            AssistRepository.AssistState.TERMINATED -> assert(false) {
                 "Should not trigger onMicrophoneInput() when assist state is $assistState"
             }
         }
