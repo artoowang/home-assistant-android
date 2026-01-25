@@ -67,13 +67,11 @@ class GlassesViewModel @Inject constructor(
             // When voice assist is already active, we want to turn off the microphone.
             AssistRepository.AssistState.VOICE_ACTIVE -> {
                 assistRepository.finishRecordingAndProcessIntent(viewModelScope)
-                return
             }
 
             // When voice assist is not active, or if we are currently using text input (but voice assist is supported),
             // we want to turn on the microphone.
             AssistRepository.AssistState.VOICE_INACTIVE, AssistRepository.AssistState.TEXT -> {
-                assistRepository.stopPlayback()
                 assistRepository.runAssistPipeline(viewModelScope)
             }
 

@@ -257,7 +257,6 @@ class AssistViewModel @Inject constructor(
             }
 
             AssistRepository.AssistState.VOICE_INACTIVE -> {
-                assistRepository.stopPlayback()
                 runAssistPipeline()
             }
 
