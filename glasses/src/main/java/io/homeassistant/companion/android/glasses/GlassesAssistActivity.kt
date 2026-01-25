@@ -4,10 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.lifecycleScope
 import androidx.xr.glimmer.GlimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.common.assist.AssistRepository
 import kotlin.getValue
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 @AndroidEntryPoint
@@ -19,6 +23,19 @@ class GlassesAssistActivity : ComponentActivity() {
         Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState, viewModel=$viewModel")
 
         viewModel.maybeStartAssistAndRecording()
+
+        // Starts a coroutine that monitors the assist state. When it becomes null, it means the assist session has been
+        // closed, so we finish the activity. The assist state signal is State<AssistState?>, which automatically
+        // de-duplicate repeated signals, so we won't get repeated it == null signals.
+        lifecycleScope.launch {
+            snapshotFlow { viewModel.assistState.value }
+                .filter { it == null }
+                .collect {
+                    Timber.d("ZZZ: Assist State is null, closing activity.")
+                    finish()
+                }
+        }
+
         setContent {
             GlimmerTheme {
                 val assistState = viewModel.assistState.value
@@ -31,8 +48,6 @@ class GlassesAssistActivity : ComponentActivity() {
                         conversation = viewModel.conversation,
                         toggleMicrophone = { viewModel.toggleMicrophone() },
                     )
-                } else {
-                    assert(false) { "Assist state should be non-null at this point." }
                 }
             }
         }
