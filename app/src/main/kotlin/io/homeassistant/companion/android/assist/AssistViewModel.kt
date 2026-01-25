@@ -311,8 +311,6 @@ class AssistViewModel @Inject constructor(
 
     fun onPause() {
         requestPermission = null
-        // TODO: Should we do this? It seems this will cause the recording to stop when rotating the screen?
-        assistRepository.stopRecording(sendRecordedScope = viewModelScope)
     }
 
     fun onDestroy() {
