@@ -64,6 +64,11 @@ class AssistViewModel @Inject constructor(
     suspend fun isRegistered(): Boolean = assistRepository.isRegistered()
 
     fun onCreate(hasPermission: Boolean, serverId: Int?, pipelineId: String?, startListening: Boolean?) {
+        if (assistRepository.assistState.value != null) {
+            // Assist session has already started. No-op.
+            return
+        }
+
         // Set up the repository synchronously (instead of the in coroutine), so we can make sure they are done before
         // this method returns.
         assistRepository.init()

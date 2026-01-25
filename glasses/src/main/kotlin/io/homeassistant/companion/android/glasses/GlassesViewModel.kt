@@ -27,9 +27,15 @@ class GlassesViewModel @Inject constructor(
     // The current list of messages in the conversation.
     val conversation: List<AssistMessage> = assistRepository.conversation
 
-    // Starts the assist session and starts to record.
-    fun startAssistAndRecording() {
-        Timber.d("ZZZ: startAssistAndRecording, viewModel=$this")
+    // Starts the assist session and starts to record (if the session is not already started).
+    fun maybeStartAssistAndRecording() {
+        Timber.d("ZZZ: startAssistAndRecording, viewModel=$this, " +
+            "assistState=${assistRepository.assistState.value}")
+
+        if (assistRepository.assistState.value != null) {
+            // Assist session has already started. No-op.
+            return
+        }
 
         // TODO: The following is a drastic simplification of what is happening in AssistViewModel. We can potentially
         // consolidate the following with AssistViewModel into AssistRepository.

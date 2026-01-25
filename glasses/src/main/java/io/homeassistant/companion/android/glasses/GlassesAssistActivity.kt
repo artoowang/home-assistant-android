@@ -18,7 +18,7 @@ class GlassesAssistActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState, viewModel=$viewModel")
 
-        viewModel.startAssistAndRecording()
+        viewModel.maybeStartAssistAndRecording()
         setContent {
             GlimmerTheme {
                 val assistState = viewModel.assistState.value
