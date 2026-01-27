@@ -77,7 +77,12 @@ class GlassesViewModel @Inject constructor(
 
             // When voice assist is not active, or if we are currently using text input (but voice assist is supported),
             // we want to turn on the microphone.
-            AssistRepository.AssistState.VOICE_INACTIVE, AssistRepository.AssistState.TEXT -> {
+            AssistRepository.AssistState.VOICE_INACTIVE -> {
+                assistRepository.runAssistPipeline(viewModelScope)
+            }
+
+            AssistRepository.AssistState.TEXT -> {
+                assistRepository.switchToVoice()
                 assistRepository.runAssistPipeline(viewModelScope)
             }
 

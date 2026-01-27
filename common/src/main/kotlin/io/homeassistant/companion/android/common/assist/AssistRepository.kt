@@ -292,9 +292,24 @@ class AssistRepositoryImpl @Inject constructor(
             Timber.w("Assist is already in voice mode.")
             return
         }
-        assert(_assistState.value == AssistState.TEXT) {
-            "Should only switch to voice input when waiting for text input."
+
+        when (_assistState.value) {
+            AssistState.INTENT_PROCESSING -> {
+                // TODO: We should also try to stop the job created in runAssistPipeline() so it won't response to any
+                // further remote events, but for now, doing nothing still seems to work. We do need this if we want to
+                // switch while in INTENT_PROCESSING.
+            }
+
+            AssistState.TEXT -> {
+                // No-op. We are ready to switch to VOICE.
+            }
+
+            else -> {
+                assert(false) { "Cannot switch to voice: unexpected assist state: ${_assistState.value}" }
+                return
+            }
         }
+
         setState(AssistState.VOICE_INACTIVE)
         _inputModality.value = InputModality.VOICE
     }
@@ -304,9 +319,26 @@ class AssistRepositoryImpl @Inject constructor(
             Timber.w("Assist is already in text mode.")
             return
         }
-        assert(_assistState.value == AssistState.VOICE_INACTIVE) {
-            "Should only switch to text input when waiting for voice input."
+
+        when (_assistState.value) {
+            AssistState.VOICE_ACTIVE -> {
+                // If we are still recording, or intent is currently processing, stop voice input.
+                // TODO: We should also try to stop the job created in runAssistPipeline() so it won't response to any
+                // further remote events, but for now, this still seems to work. We will indeed need that if we want to
+                // switch while in INTENT_PROCESSING.
+                resetVoiceInputData()
+            }
+
+            AssistState.VOICE_INACTIVE -> {
+                // No-op. We are ready to switch to TEXT.
+            }
+
+            else -> {
+                assert(false) { "Cannot switch to text: unexpected assist state: ${_assistState.value}" }
+                return
+            }
         }
+
         setState(AssistState.TEXT)
         _inputModality.value = InputModality.TEXT
     }
