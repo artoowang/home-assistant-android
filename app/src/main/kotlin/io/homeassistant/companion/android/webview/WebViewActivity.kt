@@ -47,6 +47,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -60,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.ColorUtils
@@ -346,6 +348,14 @@ class WebViewActivity :
         lifecycleScope.launch {
             appLocked.value = presenter.isAppLocked()
         }
+
+        // TODO: Test
+//        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+//        cameraProviderFuture.addListener({
+//            val cameraProvider = cameraProviderFuture.get()
+//            Timber.d("ZZZ: cameraProvider=$cameraProvider")
+//            Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+//        }, ContextCompat.getMainExecutor(this))
 
         setContent {
             val coroutineScope = rememberCoroutineScope()

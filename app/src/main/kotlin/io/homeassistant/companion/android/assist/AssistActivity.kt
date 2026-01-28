@@ -124,12 +124,12 @@ class AssistActivity : BaseActivity() {
         val fromFrontend = intent.getBooleanExtra(EXTRA_FROM_FRONTEND, false)
 
         // TODO: Test
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-            Timber.d("ZZZ: cameraProvider=$cameraProvider")
-            Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
-        }, ContextCompat.getMainExecutor(this))
+//        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+//        cameraProviderFuture.addListener({
+//            val cameraProvider = cameraProviderFuture.get()
+//            Timber.d("ZZZ: cameraProvider=$cameraProvider")
+//            Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+//        }, ContextCompat.getMainExecutor(this))
 
         setContent {
             HomeAssistantAppTheme {
