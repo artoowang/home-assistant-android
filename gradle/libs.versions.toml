@@ -95,6 +95,8 @@ zxing = "4.3.0"
 junitVersion = "4.13.2"
 androidxJunit = "1.1.5"
 espressoCore = "3.5.1"
+cameraLifecycle = "1.5.2"
+cameraCamera2 = "1.5.2"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
@@ -260,6 +262,8 @@ zxing = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxin
 junit = { group = "junit", name = "junit", version.ref = "junitVersion" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCamera2" }
 
 [bundles]
 androidx-test =["androidx-test-core", "androidx-test-ext", "androidx-test-rules", "androidx-test-runner"]

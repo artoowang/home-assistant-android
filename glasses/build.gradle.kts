@@ -38,6 +38,8 @@ dependencies {
     implementation(libs.material)
     implementation("androidx.xr.glimmer:glimmer:1.0.0-alpha04")
     implementation("androidx.xr.projected:projected:1.0.0-alpha03")
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.camera2)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
