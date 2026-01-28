@@ -39,6 +39,11 @@ dependencies {
     "fullImplementation"(libs.car.projected)
     implementation("androidx.xr.projected:projected:1.0.0-alpha03")
     implementation(project(":glasses"))
+
+    implementation("androidx.camera:camera-core:1.5.2")
+    implementation("androidx.camera:camera-camera2:1.5.2")
+    implementation("androidx.camera:camera-lifecycle:1.5.2")
+    implementation("androidx.camera:camera-view:1.5.2")
 }
 
 // Disable to fix memory leak and be compatible with the configuration cache.
