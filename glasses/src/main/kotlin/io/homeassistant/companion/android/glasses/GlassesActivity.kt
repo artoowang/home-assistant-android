@@ -43,6 +43,7 @@ import androidx.xr.projected.ProjectedContext
 import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
+import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
@@ -52,6 +53,20 @@ fun launchGlassesExperience(context: Context) {
 
     try {
         val projectedContext = ProjectedContext.createProjectedDeviceContext(context)
+        Timber.d("ZZZ: launchGlassesExperience: created projected context $projectedContext from normal context $context")
+
+        // val cameraProviderFuture = ProcessCameraProvider.getInstance(projectedContext)
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        Timber.d("ZZZ: launchGlassesExperience: get cameraProviderFuture=$cameraProviderFuture")
+        cameraProviderFuture.addListener(
+            {
+                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+                Timber.d("ZZZ: cameraProvider=$cameraProvider")
+                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+            },
+            ContextCompat.getMainExecutor(context),
+        )
+
         val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
         val intent = Intent(context, GlassesActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -69,6 +84,9 @@ fun launchGlassesExperience(context: Context) {
 
 @AndroidEntryPoint
 class GlassesActivity : ComponentActivity() {
+    @OptIn(ExperimentalProjectedApi::class)
+    private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
+
     // -----------------------------------------------------------------------------------------------------------------
     // Permission Utilities.
 
@@ -112,6 +130,18 @@ class GlassesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState")
+
+//        @OptIn(ExperimentalProjectedApi::class)
+//        cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+//        Timber.d("ZZZ: onCreate: get cameraProviderFuture=$cameraProviderFuture")
+//        cameraProviderFuture.addListener(
+//            {
+//                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+//                Timber.d("ZZZ: cameraProvider=$cameraProvider")
+//                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+//            },
+//            ContextCompat.getMainExecutor(this),
+//        )
 
         val allGranted = checkAllPermissionsGranted()
         isPermissionsGranted = allGranted
@@ -161,6 +191,7 @@ class GlassesActivity : ComponentActivity() {
             {
                 // Used to bind the lifecycle of cameras to the lifecycle owner
                 val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
 
                 // Select the camera. When using the projected context, DEFAULT_BACK_CAMERA maps to the AI glasses' camera.
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
