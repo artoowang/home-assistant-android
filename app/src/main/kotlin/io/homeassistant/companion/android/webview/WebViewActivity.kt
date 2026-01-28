@@ -4,11 +4,15 @@ import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.app.PictureInPictureParams
 import android.content.ActivityNotFoundException
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Rect
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -18,9 +22,12 @@ import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.MediaStore
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
+import android.util.Range
 import android.util.Rational
+import android.util.Size
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -46,6 +53,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
@@ -69,6 +84,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
@@ -311,6 +327,72 @@ class WebViewActivity :
 
     private val snackbarHostState = SnackbarHostState()
 
+    // TODO
+//    fun createOutputFileOptions(context: Context): ImageCapture.OutputFileOptions {
+//        val contentValues = ContentValues().apply {
+//            put(MediaStore.MediaColumns.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}")
+//            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+//            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MyApp") // folder in gallery
+//        }
+//
+//        val resolver = context.contentResolver
+//        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+//        assert(uri != null) { "Failed to create MediaStore entry" }
+//
+//        return ImageCapture.OutputFileOptions.Builder(resolver, uri!!, contentValues).build()
+//    }
+
+    fun createOutputFileOptions(context: Context): ImageCapture.OutputFileOptions {
+        return ImageCapture.OutputFileOptions.Builder(
+            context.contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}")
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MyApp")
+            }
+        ).build()
+    }
+
+    // TODO
+    fun takePhoto(context: Context, imageCapture: ImageCapture) {
+        Timber.d("ZZZ: takePhoto")
+
+        val outputOptions = createOutputFileOptions(context)
+
+        // TODO: Nothing seems to happen? Nothing under /sdcard/Pictures/MyApp/
+        imageCapture.takePicture(
+            /* outputFileOptions = */ outputOptions,
+            /* executor = */ ContextCompat.getMainExecutor(context),
+            /* imageSavedCallback = */
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onCaptureStarted() {
+                    Timber.d("ZZZ: onCaptureStarted")
+                }
+
+                override fun onCaptureProcessProgressed(progress: Int) {
+                    Timber.d("ZZZ: onCaptureProcessProgressed: $progress")
+                }
+
+                override fun onPostviewBitmapAvailable(bitmap: Bitmap) {
+                    Timber.d("ZZZ: onPostviewBitmapAvailable: $bitmap")
+                }
+
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    val savedUri = outputFileResults.savedUri
+                    Timber.d("ZZZ: Photo saved to gallery: $savedUri")
+                    Toast.makeText(context, "Photo saved!", Toast.LENGTH_SHORT).show()
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Timber.e(exception, "ZZZ: Photo capture failed: ${exception.message}")
+                    Toast.makeText(context, "Failed to capture photo", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
     @OptIn(ExperimentalProjectedApi::class)
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -363,7 +445,7 @@ class WebViewActivity :
                     ProjectedContext
                         .isProjectedDeviceConnected(
                             this@WebViewActivity,
-                            Dispatchers.Main.immediate
+                            Dispatchers.Main.immediate,
                         )
                         .collect { isProjected ->
                             Timber.d("ZZZ: isProjected=$isProjected")
@@ -377,6 +459,60 @@ class WebViewActivity :
                                     val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
                                     Timber.d("ZZZ: cameraProvider=$cameraProvider")
                                     Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+
+                                    // Select the camera. When using the projected context, DEFAULT_BACK_CAMERA maps to the AI glasses' camera.
+                                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                                    // Check for the presence of a camera before initializing the ImageCapture use case.
+                                    if (!cameraProvider.hasCamera(cameraSelector)) {
+                                        Timber.w("The selected camera is not available.")
+                                        return@addListener
+                                    }
+
+                                    // Get supported streaming resolutions.
+                                    val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
+                                    val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
+                                    val cameraCharacteristics =
+                                        camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                                    Timber.d("ZZZ: cameraCharacteristics=$cameraCharacteristics")
+
+                                    // Define the resolution strategy.
+                                    val targetResolution = Size(1920, 1080)
+                                    val resolutionStrategy = ResolutionStrategy(
+                                        targetResolution,
+                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
+                                    )
+
+                                    val resolutionSelector = ResolutionSelector.Builder()
+                                        .setResolutionStrategy(resolutionStrategy)
+                                        .build()
+
+                                    // If you have other continuous use cases bound, such as Preview or ImageAnalysis, you can use  Camera2 Interop's CaptureRequestOptions to set the FPS
+                                    val fpsRange = Range(30, 30)
+                                    val captureRequestOptions = CaptureRequestOptions.Builder()
+                                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+                                        .build()
+
+                                    // Initialize the ImageCapture use case.
+                                    val imageCapture = ImageCapture.Builder()
+                                        // Optional: Configure resolution, format, etc.
+                                        .setResolutionSelector(resolutionSelector)
+                                        .build()
+
+                                    try {
+                                        // Unbind use cases before rebinding
+                                        cameraProvider.unbindAll()
+
+                                        // 4. Bind use cases to camera
+                                        cameraProvider.bindToLifecycle(this@WebViewActivity as LifecycleOwner, cameraSelector, imageCapture)
+
+                                        Timber.d("ZZZ: imageCapture=$imageCapture")
+                                        takePhoto(this@WebViewActivity, imageCapture)
+
+                                    } catch (exc: Exception) {
+                                        // This catches exceptions like IllegalStateException if use case binding fails
+                                        Timber.e(exc, "Use case binding failed")
+                                    }
                                 },
                                 ContextCompat.getMainExecutor(this@WebViewActivity),
                             )
