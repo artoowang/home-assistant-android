@@ -45,6 +45,7 @@ import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import timber.log.Timber
 
 @OptIn(ExperimentalProjectedApi::class)
@@ -52,28 +53,38 @@ fun launchGlassesExperience(context: Context) {
     Timber.d("ZZZ: Attempting to launch GlassesActivity on connected device...")
 
     try {
-        val projectedContext = ProjectedContext.createProjectedDeviceContext(context)
-        Timber.d("ZZZ: launchGlassesExperience: created projected context $projectedContext from normal context $context")
-
-        // val cameraProviderFuture = ProcessCameraProvider.getInstance(projectedContext)
-//        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-//        Timber.d("ZZZ: launchGlassesExperience: get cameraProviderFuture=$cameraProviderFuture")
-//        cameraProviderFuture.addListener(
+//        val cameraProviderFuture1 = ProcessCameraProvider.getInstance(context)
+//        cameraProviderFuture1.addListener(
 //            {
-//                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-//                Timber.d("ZZZ: cameraProvider=$cameraProvider")
-//                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+//                val cameraProvider: ProcessCameraProvider = cameraProviderFuture1.get()
+//                Timber.d("ZZZ: cameraProvider1=$cameraProvider")
+//                Timber.d("ZZZ: cameraProvider1.availableCameraInfos=${cameraProvider.availableCameraInfos}")
 //            },
 //            ContextCompat.getMainExecutor(context),
 //        )
 
-        val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
-        val intent = Intent(context, GlassesActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        val projectedContext = ProjectedContext.createProjectedDeviceContext(context)
+        Timber.d("ZZZ: launchGlassesExperience: created projected context $projectedContext from normal context $context")
+        // ProjectedContext.isProjectedDeviceConnected(projectedContext, Dispatchers.Main.immediate)
+        // Timber.d("ZZZ: projectedContext.=${projectedContext.isPro}")
 
-        context.startActivity(intent, options.toBundle())
-        Timber.i("Successfully sent launch intent to the projected device.")
+        val cameraProviderFuture2 = ProcessCameraProvider.getInstance(projectedContext)
+        cameraProviderFuture2.addListener(
+            {
+                val cameraProvider: ProcessCameraProvider = cameraProviderFuture2.get()
+                Timber.d("ZZZ: cameraProvider2=$cameraProvider")
+                Timber.d("ZZZ: cameraProvider2.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+            },
+            ContextCompat.getMainExecutor(context),
+        )
+
+//        val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
+//        val intent = Intent(context, GlassesActivity::class.java).apply {
+//            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//        }
+//
+//        context.startActivity(intent, options.toBundle())
+//        Timber.i("Successfully sent launch intent to the projected device.")
 
     } catch (e: IllegalStateException) {
         Timber.e("Projected device not ready: ${e.message}")
