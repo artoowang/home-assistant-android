@@ -45,7 +45,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.material3.SnackbarDuration
@@ -79,6 +78,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import androidx.xr.projected.ProjectedContext
+import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.BaseActivity
 import io.homeassistant.companion.android.BuildConfig
@@ -310,6 +311,7 @@ class WebViewActivity :
 
     private val snackbarHostState = SnackbarHostState()
 
+    @OptIn(ExperimentalProjectedApi::class)
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState")
@@ -350,12 +352,39 @@ class WebViewActivity :
         }
 
         // TODO: Test
-//        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-//        cameraProviderFuture.addListener({
-//            val cameraProvider = cameraProviderFuture.get()
-//            Timber.d("ZZZ: cameraProvider=$cameraProvider")
-//            Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
-//        }, ContextCompat.getMainExecutor(this))
+        val cameraProviderFuture2 = ProcessCameraProvider.getInstance(this)
+        cameraProviderFuture2.addListener(
+            {
+                val cameraProvider2: ProcessCameraProvider = cameraProviderFuture2.get()
+                Timber.d("ZZZ: cameraProvider2=$cameraProvider2")
+                Timber.d("ZZZ: cameraProvider2.availableCameraInfos=${cameraProvider2.availableCameraInfos}")
+
+                lifecycleScope.launch {
+                    ProjectedContext
+                        .isProjectedDeviceConnected(
+                            this@WebViewActivity,
+                            Dispatchers.Main.immediate
+                        )
+                        .collect { isProjected ->
+                            Timber.d("ZZZ: isProjected=$isProjected")
+
+                            val projectedContext = ProjectedContext.createProjectedDeviceContext(this@WebViewActivity)
+                            Timber.d("ZZZ: created projected context $projectedContext from normal context $this")
+
+                            val cameraProviderFuture = ProcessCameraProvider.getInstance(projectedContext)
+                            cameraProviderFuture.addListener(
+                                {
+                                    val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+                                    Timber.d("ZZZ: cameraProvider=$cameraProvider")
+                                    Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+                                },
+                                ContextCompat.getMainExecutor(this@WebViewActivity),
+                            )
+                        }
+                }
+            },
+            ContextCompat.getMainExecutor(this),
+        )
 
         setContent {
             val coroutineScope = rememberCoroutineScope()
@@ -1171,7 +1200,7 @@ class WebViewActivity :
             // Launch GlassesActivity at each resume.
             // TODO: Not sure why, but doing this in this coroutine (instead of at the end of onResume()) prevents the
             // WebViewActivity gets stuck at black screen until I tap the screen.
-            launchGlassesExperience(this@WebViewActivity)
+            // launchGlassesExperience(this@WebViewActivity)
         }
 
         if (loadedUrl != null) {
