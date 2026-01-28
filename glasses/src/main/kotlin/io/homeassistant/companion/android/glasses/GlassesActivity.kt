@@ -4,10 +4,22 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
 import android.os.Bundle
+import android.util.Range
+import android.util.Size
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.Text
 import androidx.xr.projected.ProjectedContext
@@ -62,6 +75,7 @@ class GlassesActivity : ComponentActivity() {
     // Keeps track if the required permissions by glasses are granted.
     private var isPermissionsGranted by mutableStateOf(false)
     private val requiredPermissions = listOf(
+        Manifest.permission.CAMERA,
         Manifest.permission.RECORD_AUDIO,
     )
 
@@ -134,6 +148,75 @@ class GlassesActivity : ComponentActivity() {
         }
     }
 
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    @OptIn(ExperimentalProjectedApi::class)
+    private fun startCamera() {
+        // Get the CameraProvider using the projected context.
+
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(
+            ProjectedContext.createProjectedDeviceContext(this),
+        )
+
+        cameraProviderFuture.addListener(
+            {
+                // Used to bind the lifecycle of cameras to the lifecycle owner
+                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+                // Select the camera. When using the projected context, DEFAULT_BACK_CAMERA maps to the AI glasses' camera.
+                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                // Check for the presence of a camera before initializing the ImageCapture use case.
+                if (!cameraProvider.hasCamera(cameraSelector)) {
+                    Timber.w("The selected camera is not available.")
+                    return@addListener
+                }
+
+                // Get supported streaming resolutions.
+                val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
+                val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
+                val cameraCharacteristics =
+                    camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+
+                // Define the resolution strategy.
+                val targetResolution = Size(1920, 1080)
+                val resolutionStrategy = ResolutionStrategy(
+                    targetResolution,
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
+                )
+
+                val resolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(resolutionStrategy)
+                    .build()
+
+                // If you have other continuous use cases bound, such as Preview or ImageAnalysis, you can use  Camera2 Interop's CaptureRequestOptions to set the FPS
+                val fpsRange = Range(30, 30)
+                val captureRequestOptions = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+                    .build()
+
+                // Initialize the ImageCapture use case.
+                val imageCapture = ImageCapture.Builder()
+                    // Optional: Configure resolution, format, etc.
+                    .setResolutionSelector(resolutionSelector)
+                    .build()
+
+                try {
+                    // Unbind use cases before rebinding
+                    cameraProvider.unbindAll()
+
+                    // 4. Bind use cases to camera
+                    cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, imageCapture)
+
+                } catch (exc: Exception) {
+                    // This catches exceptions like IllegalStateException if use case binding fails
+                    Timber.e(exc, "Use case binding failed")
+                }
+
+            },
+            ContextCompat.getMainExecutor(this),
+        )
+    }
+
     private fun setupContent() {
         setContent {
             GlimmerTheme {
@@ -144,8 +227,9 @@ class GlassesActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black)
                             .clickable {
-                                startAssistActivity()
-                            }
+                                // startAssistActivity()
+                                startCamera()
+                            },
                     ) {
                         // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
                         // the screen?
@@ -169,7 +253,7 @@ fun PermissionNotice() {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.Black),
     ) {
         Text(
             text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",
