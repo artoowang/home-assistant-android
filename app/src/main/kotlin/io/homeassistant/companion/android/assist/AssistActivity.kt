@@ -11,6 +11,7 @@ import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -121,6 +122,14 @@ class AssistActivity : BaseActivity() {
         }
 
         val fromFrontend = intent.getBooleanExtra(EXTRA_FROM_FRONTEND, false)
+
+        // TODO: Test
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            Timber.d("ZZZ: cameraProvider=$cameraProvider")
+            Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+        }, ContextCompat.getMainExecutor(this))
 
         setContent {
             HomeAssistantAppTheme {

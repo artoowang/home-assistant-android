@@ -56,16 +56,16 @@ fun launchGlassesExperience(context: Context) {
         Timber.d("ZZZ: launchGlassesExperience: created projected context $projectedContext from normal context $context")
 
         // val cameraProviderFuture = ProcessCameraProvider.getInstance(projectedContext)
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        Timber.d("ZZZ: launchGlassesExperience: get cameraProviderFuture=$cameraProviderFuture")
-        cameraProviderFuture.addListener(
-            {
-                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                Timber.d("ZZZ: cameraProvider=$cameraProvider")
-                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
-            },
-            ContextCompat.getMainExecutor(context),
-        )
+//        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+//        Timber.d("ZZZ: launchGlassesExperience: get cameraProviderFuture=$cameraProviderFuture")
+//        cameraProviderFuture.addListener(
+//            {
+//                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+//                Timber.d("ZZZ: cameraProvider=$cameraProvider")
+//                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+//            },
+//            ContextCompat.getMainExecutor(context),
+//        )
 
         val options = ProjectedContext.createProjectedActivityOptions(projectedContext)
         val intent = Intent(context, GlassesActivity::class.java).apply {
