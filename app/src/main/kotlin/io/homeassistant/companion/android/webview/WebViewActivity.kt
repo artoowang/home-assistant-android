@@ -74,6 +74,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.concurrent.futures.await
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -1201,6 +1202,91 @@ class WebViewActivity :
 
     @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
     @OptIn(ExperimentalProjectedApi::class)
+    private suspend fun setUpCamera() {
+        Timber.d("ZZZ: setUpCamera")
+
+        // TODO: Without calling this first before creating projected device context, the camera provider below will
+        // give me no camera infos. Although if I do this, it seems the camera I am getting is the phone camera, not
+        // glasses.
+        val cameraProvider2 = ProcessCameraProvider.getInstance(this).await()
+        Timber.d("ZZZ: cameraProvider2=$cameraProvider2")
+        Timber.d("ZZZ: cameraProvider2.availableCameraInfos=${cameraProvider2.availableCameraInfos}")
+
+        ProjectedContext
+            .isProjectedDeviceConnected(
+                this@WebViewActivity,
+                Dispatchers.Main.immediate,
+            )
+            .collect { isProjected ->
+                Timber.d("ZZZ: isProjected=$isProjected")
+
+                val projectedContext = ProjectedContext.createProjectedDeviceContext(this@WebViewActivity)
+                Timber.d("ZZZ: created projected context $projectedContext from normal context $this")
+
+                val cameraProvider = ProcessCameraProvider.getInstance(projectedContext).await()
+                Timber.d("ZZZ: cameraProvider=$cameraProvider")
+                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
+
+                // Select the camera. When using the projected context, DEFAULT_BACK_CAMERA maps to the AI glasses' camera.
+                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                // Check for the presence of a camera before initializing the ImageCapture use case.
+                if (!cameraProvider.hasCamera(cameraSelector)) {
+                    Timber.w("The selected camera is not available.")
+                    return@collect
+                }
+
+                // Get supported streaming resolutions.
+                val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
+                val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
+                val cameraCharacteristics =
+                    camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                Timber.d("ZZZ: cameraCharacteristics=$cameraCharacteristics")
+
+                // Define the resolution strategy.
+                val targetResolution = Size(1920, 1080)
+                val resolutionStrategy = ResolutionStrategy(
+                    targetResolution,
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
+                )
+
+                val resolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(resolutionStrategy)
+                    .build()
+
+                // If you have other continuous use cases bound, such as Preview or ImageAnalysis, you can use  Camera2 Interop's CaptureRequestOptions to set the FPS
+                val fpsRange = Range(30, 30)
+                val captureRequestOptions = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+                    .build()
+
+                // Initialize the ImageCapture use case.
+                val imageCapture = ImageCapture.Builder()
+                    // Optional: Configure resolution, format, etc.
+                    .setResolutionSelector(resolutionSelector)
+                    .build()
+
+                try {
+                    // Unbind use cases before rebinding
+                    cameraProvider.unbindAll()
+
+                    // 4. Bind use cases to camera
+                    cameraProvider.bindToLifecycle(
+                        this@WebViewActivity as LifecycleOwner,
+                        cameraSelector,
+                        imageCapture
+                    )
+
+                    Timber.d("ZZZ: imageCapture=$imageCapture")
+                    takePhoto(this@WebViewActivity, imageCapture)
+
+                } catch (exc: Exception) {
+                    // This catches exceptions like IllegalStateException if use case binding fails
+                    Timber.e(exc, "Use case binding failed")
+                }
+            }
+    }
+
     override fun onResume() {
         Timber.d("ZZZ: onResume")
 
@@ -1256,94 +1342,9 @@ class WebViewActivity :
             waitForConnection()
         }
 
-        // TODO: Test
-        val cameraProviderFuture2 = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture2.addListener(
-            {
-                val cameraProvider2: ProcessCameraProvider = cameraProviderFuture2.get()
-                Timber.d("ZZZ: cameraProvider2=$cameraProvider2")
-                Timber.d("ZZZ: cameraProvider2.availableCameraInfos=${cameraProvider2.availableCameraInfos}")
-
-                lifecycleScope.launch {
-                    ProjectedContext
-                        .isProjectedDeviceConnected(
-                            this@WebViewActivity,
-                            Dispatchers.Main.immediate,
-                        )
-                        .collect { isProjected ->
-                            Timber.d("ZZZ: isProjected=$isProjected")
-
-                            val projectedContext = ProjectedContext.createProjectedDeviceContext(this@WebViewActivity)
-                            Timber.d("ZZZ: created projected context $projectedContext from normal context $this")
-
-                            val cameraProviderFuture = ProcessCameraProvider.getInstance(projectedContext)
-                            cameraProviderFuture.addListener(
-                                {
-                                    val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                                    Timber.d("ZZZ: cameraProvider=$cameraProvider")
-                                    Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
-
-                                    // Select the camera. When using the projected context, DEFAULT_BACK_CAMERA maps to the AI glasses' camera.
-                                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                                    // Check for the presence of a camera before initializing the ImageCapture use case.
-                                    if (!cameraProvider.hasCamera(cameraSelector)) {
-                                        Timber.w("The selected camera is not available.")
-                                        return@addListener
-                                    }
-
-                                    // Get supported streaming resolutions.
-                                    val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
-                                    val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
-                                    val cameraCharacteristics =
-                                        camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-                                    Timber.d("ZZZ: cameraCharacteristics=$cameraCharacteristics")
-
-                                    // Define the resolution strategy.
-                                    val targetResolution = Size(1920, 1080)
-                                    val resolutionStrategy = ResolutionStrategy(
-                                        targetResolution,
-                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
-                                    )
-
-                                    val resolutionSelector = ResolutionSelector.Builder()
-                                        .setResolutionStrategy(resolutionStrategy)
-                                        .build()
-
-                                    // If you have other continuous use cases bound, such as Preview or ImageAnalysis, you can use  Camera2 Interop's CaptureRequestOptions to set the FPS
-                                    val fpsRange = Range(30, 30)
-                                    val captureRequestOptions = CaptureRequestOptions.Builder()
-                                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
-                                        .build()
-
-                                    // Initialize the ImageCapture use case.
-                                    val imageCapture = ImageCapture.Builder()
-                                        // Optional: Configure resolution, format, etc.
-                                        .setResolutionSelector(resolutionSelector)
-                                        .build()
-
-                                    try {
-                                        // Unbind use cases before rebinding
-                                        cameraProvider.unbindAll()
-
-                                        // 4. Bind use cases to camera
-                                        cameraProvider.bindToLifecycle(this@WebViewActivity as LifecycleOwner, cameraSelector, imageCapture)
-
-                                        Timber.d("ZZZ: imageCapture=$imageCapture")
-                                        takePhoto(this@WebViewActivity, imageCapture)
-
-                                    } catch (exc: Exception) {
-                                        // This catches exceptions like IllegalStateException if use case binding fails
-                                        Timber.e(exc, "Use case binding failed")
-                                    }
-                                },
-                                ContextCompat.getMainExecutor(this@WebViewActivity),
-                            )
-                        }
-                }
-            },
-            ContextCompat.getMainExecutor(this),
-        )
+        lifecycleScope.launch {
+            setUpCamera()
+        }
     }
 
     override fun onStop() {
