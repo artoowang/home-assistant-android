@@ -17,7 +17,8 @@ object UtilModule {
     @Provides
     @Singleton
     fun provideAudioRecorder(@ApplicationContext appContext: Context): AudioRecorder =
-        AudioRecorder(appContext.getSystemService<AudioManager>())
+        // AudioManager should always be available.
+        AudioRecorder(appContext.getSystemService<AudioManager>()!!, appContext)
 
     @Provides
     @Singleton

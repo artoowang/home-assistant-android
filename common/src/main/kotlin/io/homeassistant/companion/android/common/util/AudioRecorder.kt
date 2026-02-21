@@ -1,11 +1,15 @@
 package io.homeassistant.companion.android.common.util
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioManager.OnAudioFocusChangeListener
 import android.media.AudioRecord
 import android.media.MediaRecorder.AudioSource
+import androidx.core.content.ContextCompat
 import androidx.media.AudioAttributesCompat
 import androidx.media.AudioFocusRequestCompat
 import androidx.media.AudioManagerCompat
@@ -22,7 +26,7 @@ import timber.log.Timber
 /**
  * Wrapper around [AudioRecord] providing pre-configured audio recording functionality.
  */
-class AudioRecorder(private val audioManager: AudioManager?) {
+class AudioRecorder(private val audioManager: AudioManager, private val context: Context) {
 
     companion object {
         // Docs: 'currently the only rate that is guaranteed to work on all devices'
@@ -50,6 +54,28 @@ class AudioRecorder(private val audioManager: AudioManager?) {
 
     private var focusRequest: AudioFocusRequestCompat? = null
     private val focusListener = OnAudioFocusChangeListener { /* Not used */ }
+
+    // Audio device callback. This is currently only used to log adding/removing devices.
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
+            Timber.d("ZZZ: Audio devices added: ${addedDevices.size}")
+            addedDevices.forEach { device ->
+                Timber.d("ZZZ: Added device $device")
+            }
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<AudioDeviceInfo>) {
+            Timber.d("ZZZ: Audio devices removed: ${removedDevices.size}")
+            removedDevices.forEach { device ->
+                Timber.d("ZZZ: Removed device: $device")
+            }
+        }
+    }
+
+    // Listener to log changes to communication device.
+    private val communicationDeviceChangedListener = AudioManager.OnCommunicationDeviceChangedListener { device ->
+        Timber.d("ZZZ: Communication device changed to $device")
+    }
 
     /**
      * Start the recorder. After calling this function, data will be available via [audioBytes].
@@ -113,6 +139,35 @@ class AudioRecorder(private val audioManager: AudioManager?) {
             return
         }
 
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
+        audioManager.addOnCommunicationDeviceChangedListener(
+            ContextCompat.getMainExecutor(context),
+            communicationDeviceChangedListener,
+        )
+
+        try {
+            val availableCommDevices = audioManager.availableCommunicationDevices
+            Timber.d("ZZZ: # of available communication devices: ${availableCommDevices.size}")
+            availableCommDevices.forEachIndexed { index, device ->
+                Timber.d("ZZZ: CommDevice[$index]: $device")
+            }
+
+            // Try to find and set Bluetooth headset
+            val btDevice = availableCommDevices.find { device ->
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+            }
+            if (btDevice != null) {
+                Timber.d("ZZZ: Found Bluetooth SCO device: $btDevice, setting as communication device")
+                val success = audioManager.setCommunicationDevice(btDevice)
+                Timber.d("ZZZ: setCommunicationDevice result: $success")
+            } else {
+                Timber.d("ZZZ: No Bluetooth SCO device found")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get/set communication devices")
+        }
+
         val bufferSize = minBufferSize() * 10
         recorder = AudioRecord(AUDIO_SOURCE, SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT, bufferSize)
         Timber.d("ZZZ: setupRecorder: recorder=$recorder")
@@ -122,12 +177,14 @@ class AudioRecorder(private val audioManager: AudioManager?) {
         Timber.d("ZZZ: releaseRecorder: recorder=$recorder")
         recorder?.release() ?: Timber.e("Recorder is already released.")
         recorder = null
+
+        audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
+        audioManager.removeOnCommunicationDeviceChangedListener(communicationDeviceChangedListener)
     }
 
     private fun minBufferSize() = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
 
     private fun requestFocus() {
-        check(audioManager != null) { "Audio manager is not available." }
         if (focusRequest == null) {
             focusRequest = AudioFocusRequestCompat.Builder(AudioManagerCompat.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).run {
                 setAudioAttributes(
@@ -153,7 +210,7 @@ class AudioRecorder(private val audioManager: AudioManager?) {
     }
 
     private fun abandonFocus() {
-        if (audioManager == null || focusRequest == null) return
+        if (focusRequest == null) return
         AudioManagerCompat.abandonAudioFocusRequest(audioManager, focusRequest!!)
     }
 }
