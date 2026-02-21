@@ -9,9 +9,9 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.assist.AssistRepository.AssistEvent
 import io.homeassistant.companion.android.common.assist.AssistRepository.AssistState
-import io.homeassistant.companion.android.common.R
 import io.homeassistant.companion.android.common.assist.AssistRepository.InputModality
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.servers.UrlState
@@ -56,14 +56,19 @@ interface AssistRepository {
     enum class AssistState {
         // When the assist session is waiting for pipeline to be set up. Input should be disabled in this mode.
         PIPELINE_PENDING,
+
         // For when the user is expected to type their request.
         TEXT,
+
         // The voice assist state is ready but not currently listening.
         VOICE_INACTIVE,
+
         // The microphone is actively listening for the user's voice command.
         VOICE_ACTIVE,
+
         // The user input is now being processed and we are waiting for the response.
         INTENT_PROCESSING,
+
         // The assist session has been terminated. The session won't be able to resume after this.
         TERMINATED,
     }
@@ -115,10 +120,7 @@ interface AssistRepository {
     fun release()
 
     // Sets the pipeline to use, and the initial input modality.
-    fun setPipeline(
-        pipeline: AssistPipelineResponse,
-        inputModality: InputModality
-    )
+    fun setPipeline(pipeline: AssistPipelineResponse, inputModality: InputModality)
 
     // Clears pipeline related data.
     fun clearPipelineData()
@@ -130,10 +132,7 @@ interface AssistRepository {
     fun switchToText()
 
     // Runs the assist pipeline. `text` is the user input when input modality is TEXT. Otherwise, it is ignored.
-    fun runAssistPipeline(
-        scope: CoroutineScope,
-        text: String = "",
-    )
+    fun runAssistPipeline(scope: CoroutineScope, text: String = "")
 
     // Finishes audio recording (including sending the remaining data using the provided `scope`). Enters
     // INTENT_PROCESSING state.
@@ -256,14 +255,11 @@ class AssistRepositoryImpl @Inject constructor(
         continueConversation.set(false)
     }
 
-    override fun setPipeline(
-        pipeline: AssistPipelineResponse,
-        inputModality: InputModality
-    ) {
+    override fun setPipeline(pipeline: AssistPipelineResponse, inputModality: InputModality) {
         assert(
             _assistState.value == AssistState.PIPELINE_PENDING ||
-            _assistState.value == AssistState.VOICE_INACTIVE ||
-            _assistState.value == AssistState.TEXT
+                _assistState.value == AssistState.VOICE_INACTIVE ||
+                _assistState.value == AssistState.TEXT,
         ) {
             "Pipeline should only be set at start, or when waiting for user input."
         }
@@ -343,10 +339,7 @@ class AssistRepositoryImpl @Inject constructor(
         _inputModality.value = InputModality.TEXT
     }
 
-    override fun runAssistPipeline(
-        scope: CoroutineScope,
-        text: String,
-    ) {
+    override fun runAssistPipeline(scope: CoroutineScope, text: String) {
         val isVoice = _inputModality.value == InputModality.VOICE
 
         if (isVoice) {
@@ -510,8 +503,10 @@ class AssistRepositoryImpl @Inject constructor(
                                     serverManager.webSocketRepository(selectedServerId).sendVoiceData(id, data)
                                 }
                             } else {
-                                Timber.e("No binary handler ID available at STT_START. Recording will not " +
-                                    "be sent.")
+                                Timber.e(
+                                    "No binary handler ID available at STT_START. Recording will not " +
+                                        "be sent.",
+                                )
                             }
                         }
                     }
@@ -606,7 +601,7 @@ class AssistRepositoryImpl @Inject constructor(
 
         assert(_assistState.value == AssistState.VOICE_ACTIVE) {
             "We should only finish recording and process intent when in VOICE_ACTIVE state, but it is " +
-            "${_assistState.value}."
+                "${_assistState.value}."
         }
 
         if (binaryHandlerId != null) {
