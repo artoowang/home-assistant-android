@@ -37,6 +37,10 @@ class AudioRecorder(private val audioManager: AudioManager, private val context:
 
         private const val AUDIO_SOURCE = AudioSource.MIC
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
+
+        // Gain factor to boost audio samples.
+        // TODO: This is currently manually picked for Bluetooth SCO audio, which tends to be very quiet.
+        private const val DEFAULT_GAIN_FACTOR = 10.0f
     }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + Job())
@@ -100,13 +104,16 @@ class AudioRecorder(private val audioManager: AudioManager, private val context:
                         // Split/conversion based on https://stackoverflow.com/a/47905328/4214819.
                         val data = ShortArray(dataSize)
                         val numSamples = it.read(data, 0, dataSize) // blocking!
+
                         val byteArray = ByteArray(numSamples * 2)
                         for (i in 0 until numSamples) {
-                            val sample = data[i]
+                            val boostedSample = (data[i] * DEFAULT_GAIN_FACTOR).toInt()
+                                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                                .toShort()
                             val byteIndex = i * 2
                             // Manually place the two bytes for each short into the new array.
-                            byteArray[byteIndex] = (sample.toInt() and 0x00FF).toByte()
-                            byteArray[byteIndex + 1] = ((sample.toInt() and 0xFF00) shr 8).toByte()
+                            byteArray[byteIndex] = (boostedSample.toInt() and 0x00FF).toByte()
+                            byteArray[byteIndex + 1] = ((boostedSample.toInt() and 0xFF00) shr 8).toByte()
                         }
                         _audioBytes.emit(byteArray)
                     }
