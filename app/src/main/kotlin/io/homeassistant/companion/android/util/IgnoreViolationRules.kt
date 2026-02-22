@@ -40,11 +40,13 @@ private data object IgnoreChromiumTrichomeWrongContextUsage : IgnoreViolationRul
         if (violation !is IncorrectContextUseViolation) return false
 
         return violation.stackTrace.any {
-            (it.fileName?.startsWith("chromium-TrichromeWebViewGoogle") == true ||
-                // TODO: This is probably an pre-existing issue. When running on Pixel Fold, the web view used seems to
-                // be the following, so we also need to test with it. The error is still reported in the log, but now it
-                // won't terminate the app.
-                it.fileName?.startsWith("chromium-SystemWebViewGoogle") == true) &&
+            (
+                it.fileName?.startsWith("chromium-TrichromeWebViewGoogle") == true ||
+                    // TODO: This is probably an pre-existing issue. When running on Pixel Fold, the web view used seems to
+                    // be the following, so we also need to test with it. The error is still reported in the log, but now it
+                    // won't terminate the app.
+                    it.fileName?.startsWith("chromium-SystemWebViewGoogle") == true
+                ) &&
                 it.methodName == "onConfigurationChanged"
         }
     }

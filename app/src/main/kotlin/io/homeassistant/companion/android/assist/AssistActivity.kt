@@ -19,8 +19,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import io.homeassistant.companion.android.BaseActivity
 import io.homeassistant.companion.android.assist.ui.AssistSheetView
 import io.homeassistant.companion.android.common.data.servers.ServerManager
-import io.homeassistant.companion.android.launch.LaunchActivity
 import io.homeassistant.companion.android.glasses.launchGlassesExperience
+import io.homeassistant.companion.android.launch.LaunchActivity
 import io.homeassistant.companion.android.util.compose.HomeAssistantAppTheme
 import io.homeassistant.companion.android.webview.WebViewActivity
 import kotlinx.coroutines.flow.filter
@@ -47,8 +47,10 @@ class AssistActivity : BaseActivity() {
             startListening: Boolean = true,
             fromFrontend: Boolean = true,
         ): Intent {
-            Timber.d("ZZZ: newInstance: serverId=$serverId, pipelineId=$pipelineId, startListening=$startListening, " +
-                "fromFrontend=$fromFrontend")
+            Timber.d(
+                "ZZZ: newInstance: serverId=$serverId, pipelineId=$pipelineId, startListening=$startListening, " +
+                    "fromFrontend=$fromFrontend",
+            )
             return Intent(context, AssistActivity::class.java).apply {
                 putExtra(EXTRA_SERVER, serverId)
                 putExtra(EXTRA_PIPELINE, pipelineId)

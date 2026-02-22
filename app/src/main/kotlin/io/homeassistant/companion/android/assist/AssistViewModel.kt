@@ -9,9 +9,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.assist.ui.AssistUiPipeline
 import io.homeassistant.companion.android.common.R as commonR
+import io.homeassistant.companion.android.common.assist.AssistMessage
 import io.homeassistant.companion.android.common.assist.AssistRepository
 import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.AssistPipelineResponse
@@ -89,11 +89,13 @@ class AssistViewModel @Inject constructor(
             if (supported == null) { // Couldn't get config
                 assistRepository.terminate(application.getString(commonR.string.assist_connnect))
             } else if (!supported) { // Core too old or doesn't include assist pipeline
-                assistRepository.terminate(application.getString(
-                    commonR.string.no_assist_support,
-                    "2023.5",
-                    application.getString(commonR.string.no_assist_support_assist_pipeline),
-                ))
+                assistRepository.terminate(
+                    application.getString(
+                        commonR.string.no_assist_support,
+                        "2023.5",
+                        application.getString(commonR.string.no_assist_support_assist_pipeline),
+                    ),
+                )
             } else {
                 setPipeline(
                     when {
@@ -130,7 +132,8 @@ class AssistViewModel @Inject constructor(
                 assistRepository.clearConversation()
             }
             if (assistState == AssistRepository.AssistState.VOICE_ACTIVE ||
-                    assistState == AssistRepository.AssistState.VOICE_INACTIVE) {
+                assistState == AssistRepository.AssistState.VOICE_INACTIVE
+            ) {
                 onMicrophoneInput()
             }
         }
@@ -144,7 +147,9 @@ class AssistViewModel @Inject constructor(
         ) {
             return false
         }
-        return serverManager.webSocketRepository(assistRepository.selectedServerId).getConfig()?.components?.contains("assist_pipeline")
+        return serverManager.webSocketRepository(
+            assistRepository.selectedServerId,
+        ).getConfig()?.components?.contains("assist_pipeline")
     }
 
     private suspend fun loadPipelines() {
@@ -171,7 +176,7 @@ class AssistViewModel @Inject constructor(
     fun changePipeline(serverId: Int, id: String) = viewModelScope.launch {
         assert(
             assistRepository.assistState.value == AssistRepository.AssistState.TEXT ||
-            assistRepository.assistState.value == AssistRepository.AssistState.VOICE_INACTIVE
+                assistRepository.assistState.value == AssistRepository.AssistState.VOICE_INACTIVE,
         ) {
             "UI error: changing pipeline should only be allowed when waiting for user input."
         }
@@ -195,7 +200,8 @@ class AssistViewModel @Inject constructor(
             )
             serverManager.integrationRepository(assistRepository.selectedServerId).setLastUsedPipeline(
                 pipeline.id,
-                pipeline.sttEngine != null)
+                pipeline.sttEngine != null,
+            )
 
             assistRepository.clearConversation()
             if (recorderAutoStart && (hasPermission || requestSilently)) {
@@ -224,7 +230,8 @@ class AssistViewModel @Inject constructor(
     fun onChangeInput() {
         when (assistState) {
             null, AssistRepository.AssistState.TERMINATED, AssistRepository.AssistState.PIPELINE_PENDING,
-            AssistRepository.AssistState.INTENT_PROCESSING -> {
+            AssistRepository.AssistState.INTENT_PROCESSING,
+            -> {
                 /* Do nothing */
             }
 
@@ -272,7 +279,8 @@ class AssistViewModel @Inject constructor(
             }
 
             null, AssistRepository.AssistState.TEXT,
-            AssistRepository.AssistState.TERMINATED -> assert(false) {
+            AssistRepository.AssistState.TERMINATED,
+            -> assert(false) {
                 "Should not trigger onMicrophoneInput() when assist state is $assistState"
             }
         }
