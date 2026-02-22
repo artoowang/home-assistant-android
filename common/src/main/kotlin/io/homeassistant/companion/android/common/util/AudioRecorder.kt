@@ -39,8 +39,10 @@ class AudioRecorder(private val audioManager: AudioManager, private val context:
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
 
         // Gain factor to boost audio samples.
-        // TODO: This is currently manually picked for Bluetooth SCO audio, which tends to be very quiet.
+        // This can be overridden at runtime via the system property persist.homeassistant.audio_gain
+        // Use: adb shell setprop persist.homeassistant.audio_gain 3.0
         private const val DEFAULT_GAIN_FACTOR = 10.0f
+        private const val GAIN_SYS_PROP = "persist.homeassistant.audio_gain"
     }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + Job())
@@ -95,6 +97,8 @@ class AudioRecorder(private val audioManager: AudioManager, private val context:
             if (recorderJob == null || recorderJob?.isActive == false) {
                 requestFocus()
                 it.startRecording()
+                // Obtain the current gain factor for each recording session.
+                val gainFactor = getGainFactorFromSysProp()
                 recorderJob = ioScope.launch {
                     val dataSize = minBufferSize()
                     while (isActive) {
@@ -107,7 +111,7 @@ class AudioRecorder(private val audioManager: AudioManager, private val context:
 
                         val byteArray = ByteArray(numSamples * 2)
                         for (i in 0 until numSamples) {
-                            val boostedSample = (data[i] * DEFAULT_GAIN_FACTOR).toInt()
+                            val boostedSample = (data[i] * gainFactor).toInt()
                                 .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
                                 .toShort()
                             val byteIndex = i * 2
@@ -219,5 +223,22 @@ class AudioRecorder(private val audioManager: AudioManager, private val context:
     private fun abandonFocus() {
         if (focusRequest == null) return
         AudioManagerCompat.abandonAudioFocusRequest(audioManager, focusRequest!!)
+    }
+
+    // Gets the current audio gain factor from the system property, or use the default if the property is not set.
+    // TODO: This should be removed for production.
+    @SuppressLint("PrivateApi")
+    private fun getGainFactorFromSysProp(): Float {
+        return try {
+            val systemPropertiesClass = Class.forName("android.os.SystemProperties")
+            val getMethod = systemPropertiesClass.getMethod("get", String::class.java, String::class.java)
+            val value = getMethod.invoke(null, GAIN_SYS_PROP, DEFAULT_GAIN_FACTOR.toString()) as String
+            val floatValue = value.toFloatOrNull() ?: DEFAULT_GAIN_FACTOR
+            Timber.d("ZZZ: Gain factor from system property: $floatValue")
+            floatValue
+        } catch (e: Exception) {
+            Timber.d(e, "Failed to read gain factor from system property, using default")
+            DEFAULT_GAIN_FACTOR
+        }
     }
 }
