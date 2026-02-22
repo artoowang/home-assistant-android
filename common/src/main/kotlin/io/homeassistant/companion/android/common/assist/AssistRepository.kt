@@ -555,8 +555,11 @@ class AssistRepositoryImpl @Inject constructor(
                         job?.cancel()
                     }
                     AssistPipelineEventType.ERROR -> {
-                        Timber.d("ZZZ: ERROR")
-                        val errorMessage = (it.data as? AssistPipelineError)?.message ?: return@collect
+                        val errorMessage = (it.data as? AssistPipelineError)?.message
+                        Timber.d("ZZZ: ERROR: $errorMessage, it.data=${it.data}")
+                        if (errorMessage == null) {
+                            return@collect
+                        }
                         onAssistEvent(AssistEvent.Message.Error(errorMessage))
                         ensureVoiceInputStopped()
                         job?.cancel()
