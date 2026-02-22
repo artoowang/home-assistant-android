@@ -422,16 +422,32 @@ class AssistRepositoryImpl @Inject constructor(
                         }
 
                         is AssistEvent.Message.Error -> {
-                            val id = outputPlaceholderId
-                            outputPlaceholderId = null
-                            if (id != null) {
-                                _conversation[id] = AssistMessage(
+                            // If there is an error, see if there is an output placeholder first, and if not, see if
+                            // there is an input placeholder. If both are not available, add a new message.
+                            val outId = outputPlaceholderId
+                            val inId = inputPlaceholderId
+                            if (outId != null) {
+                                _conversation[outId] = AssistMessage(
                                     message = event.message.trim(),
                                     isInput = false,
                                     isError = true,
                                 )
+                                outputPlaceholderId = null
+                            } else if (inId != null) {
+                                _conversation[inId] = AssistMessage(
+                                    message = event.message.trim(),
+                                    isInput = true,
+                                    isError = true,
+                                )
+                                outputPlaceholderId = null
                             } else {
-                                Timber.e("No output place holder to populate error message: $event")
+                                _conversation.add(
+                                    AssistMessage(
+                                        message = event.message.trim(),
+                                        isInput = false,
+                                        isError = true,
+                                    ),
+                                )
                             }
                         }
                     }
