@@ -69,9 +69,9 @@ import androidx.compose.ui.unit.sp
 import com.mikepenz.iconics.compose.Image
 import com.mikepenz.iconics.typeface.library.community.material.CommunityMaterial
 import io.homeassistant.companion.android.R
-import io.homeassistant.companion.android.common.assist.AssistRepository
 import io.homeassistant.companion.android.common.R as commonR
 import io.homeassistant.companion.android.common.assist.AssistMessage
+import io.homeassistant.companion.android.common.assist.AssistRepository
 import io.homeassistant.companion.android.util.compose.safeScreenHeight
 import kotlinx.coroutines.launch
 
@@ -143,7 +143,7 @@ fun AssistSheetView(
                             ),
                     ) {
                         items(conversation) {
-                            SpeechBubble(text = it.message, isResponse = !it.isInput)
+                            SpeechBubble(text = it.message, isResponse = !it.isInput, isError = it.isError)
                         }
                     }
                     AssistSheetControls(
@@ -368,7 +368,13 @@ fun AssistSheetControls(
 }
 
 @Composable
-fun SpeechBubble(text: String, isResponse: Boolean) {
+fun SpeechBubble(text: String, isResponse: Boolean, isError: Boolean = false) {
+    val backgroundColor = when {
+        isError -> colorResource(commonR.color.colorWarning)
+        isResponse -> colorResource(commonR.color.colorAccent)
+        else -> colorResource(commonR.color.colorSpeechText)
+    }
+    val textColor = if (isResponse || isError) Color.White else Color.Black
     Row(
         horizontalArrangement = if (isResponse) Arrangement.Start else Arrangement.End,
         modifier = Modifier
@@ -383,11 +389,7 @@ fun SpeechBubble(text: String, isResponse: Boolean) {
         Box(
             modifier = Modifier
                 .background(
-                    if (isResponse) {
-                        colorResource(commonR.color.colorAccent)
-                    } else {
-                        colorResource(commonR.color.colorSpeechText)
-                    },
+                    backgroundColor,
                     AbsoluteRoundedCornerShape(
                         topLeft = 12.dp,
                         topRight = 12.dp,
@@ -399,11 +401,7 @@ fun SpeechBubble(text: String, isResponse: Boolean) {
         ) {
             Text(
                 text = text,
-                color = if (isResponse) {
-                    Color.White
-                } else {
-                    Color.Black
-                },
+                color = textColor,
                 modifier = Modifier
                     .padding(2.dp),
             )
