@@ -1390,9 +1390,10 @@ class WebViewActivity :
             waitForConnection()
         }
 
-        lifecycleScope.launch {
-            setUpCamera()
-        }
+        // TOOD: Testing GlassesAcitivity, don't set up camera here.
+//        lifecycleScope.launch {
+//            setUpCamera()
+//        }
     }
 
     override fun onStop() {

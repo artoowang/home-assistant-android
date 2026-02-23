@@ -30,6 +30,7 @@ android {
 dependencies {
     implementation(project(":common"))
     implementation(libs.activity.compose)
+    implementation(libs.androidx.concurrent.ktx)
     implementation(libs.androidx.material3)
     implementation(libs.appcompat)
     implementation(libs.community.material.typeface)
