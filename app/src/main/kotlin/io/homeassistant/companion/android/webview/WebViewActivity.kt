@@ -131,6 +131,7 @@ import io.homeassistant.companion.android.database.authentication.Authentication
 import io.homeassistant.companion.android.database.authentication.AuthenticationDao
 import io.homeassistant.companion.android.database.server.ServerConnectionInfo
 import io.homeassistant.companion.android.databinding.DialogAuthenticationBinding
+import io.homeassistant.companion.android.glasses.launchGlassesExperience
 import io.homeassistant.companion.android.improv.ui.ImprovPermissionDialog
 import io.homeassistant.companion.android.improv.ui.ImprovSetupDialog
 import io.homeassistant.companion.android.launch.LaunchActivity
@@ -1382,7 +1383,7 @@ class WebViewActivity :
             // Launch GlassesActivity at each resume.
             // TODO: Not sure why, but doing this in this coroutine (instead of at the end of onResume()) prevents the
             // WebViewActivity gets stuck at black screen until I tap the screen.
-            // launchGlassesExperience(this@WebViewActivity)
+            launchGlassesExperience(this@WebViewActivity)
         }
 
         if (loadedUrl != null) {
