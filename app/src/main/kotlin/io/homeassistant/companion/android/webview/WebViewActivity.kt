@@ -56,6 +56,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.CameraFilter
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -129,7 +131,6 @@ import io.homeassistant.companion.android.database.authentication.Authentication
 import io.homeassistant.companion.android.database.authentication.AuthenticationDao
 import io.homeassistant.companion.android.database.server.ServerConnectionInfo
 import io.homeassistant.companion.android.databinding.DialogAuthenticationBinding
-import io.homeassistant.companion.android.glasses.launchGlassesExperience
 import io.homeassistant.companion.android.improv.ui.ImprovPermissionDialog
 import io.homeassistant.companion.android.improv.ui.ImprovSetupDialog
 import io.homeassistant.companion.android.launch.LaunchActivity
@@ -351,7 +352,7 @@ class WebViewActivity :
                 put(MediaStore.MediaColumns.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}")
                 put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MyApp")
-            }
+            },
         ).build()
     }
 
@@ -363,8 +364,10 @@ class WebViewActivity :
 
         // TODO: Nothing seems to happen? Nothing under /sdcard/Pictures/MyApp/
         imageCapture.takePicture(
-            /* outputFileOptions = */ outputOptions,
-            /* executor = */ ContextCompat.getMainExecutor(context),
+            /* outputFileOptions = */
+            outputOptions,
+            /* executor = */
+            ContextCompat.getMainExecutor(context),
             /* imageSavedCallback = */
             object : ImageCapture.OnImageSavedCallback {
                 override fun onCaptureStarted() {
@@ -389,7 +392,7 @@ class WebViewActivity :
                     Timber.e(exception, "ZZZ: Photo capture failed: ${exception.message}")
                     Toast.makeText(context, "Failed to capture photo", Toast.LENGTH_SHORT).show()
                 }
-            }
+            },
         )
     }
 
@@ -1227,8 +1230,53 @@ class WebViewActivity :
                 Timber.d("ZZZ: cameraProvider=$cameraProvider")
                 Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
 
-                // Select the camera. When using the projected context, DEFAULT_BACK_CAMERA maps to the AI glasses' camera.
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                // Find the glasses' camera by looking for a camera that is NOT the phone's main back camera (id 0).
+                // In projected mode, the glasses appear as an additional camera.
+                val glassesCameraInfo = cameraProvider.availableCameraInfos.firstOrNull { cameraInfo ->
+                    try {
+                        val cameraId = Camera2CameraInfo.from(cameraInfo).getCameraId()
+                        Timber.d("ZZZ: Checking camera id: $cameraId")
+                        // The glasses' camera is typically not camera 0 (phone's back camera)
+                        cameraId != "0"
+                    } catch (e: Exception) {
+                        Timber.e(e, "Failed to get camera ID")
+                        false
+                    }
+                }
+
+                if (glassesCameraInfo == null) {
+                    Timber.w("No glasses camera found, falling back to default back camera")
+                }
+
+                // Select the camera using a filter to target the glasses' camera
+                val cameraSelector = if (glassesCameraInfo != null) {
+                    val targetCameraId = try {
+                        Camera2CameraInfo.from(glassesCameraInfo).getCameraId()
+                    } catch (e: Exception) {
+                        Timber.e(e, "Failed to get glasses camera ID")
+                        null
+                    }
+
+                    if (targetCameraId != null) {
+                        CameraSelector.Builder()
+                            .addCameraFilter(object : CameraFilter {
+                                override fun filter(cameraInfos: MutableList<CameraInfo>): MutableList<CameraInfo> {
+                                    return cameraInfos.filter { info ->
+                                        try {
+                                            Camera2CameraInfo.from(info).getCameraId() == targetCameraId
+                                        } catch (e: Exception) {
+                                            false
+                                        }
+                                    }.toMutableList()
+                                }
+                            })
+                            .build()
+                    } else {
+                        CameraSelector.DEFAULT_BACK_CAMERA
+                    }
+                } else {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
 
                 // Check for the presence of a camera before initializing the ImageCapture use case.
                 if (!cameraProvider.hasCamera(cameraSelector)) {
@@ -1274,12 +1322,11 @@ class WebViewActivity :
                     cameraProvider.bindToLifecycle(
                         this@WebViewActivity as LifecycleOwner,
                         cameraSelector,
-                        imageCapture
+                        imageCapture,
                     )
 
                     Timber.d("ZZZ: imageCapture=$imageCapture")
                     takePhoto(this@WebViewActivity, imageCapture)
-
                 } catch (exc: Exception) {
                     // This catches exceptions like IllegalStateException if use case binding fails
                     Timber.e(exc, "Use case binding failed")
