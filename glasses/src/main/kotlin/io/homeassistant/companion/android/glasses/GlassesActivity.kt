@@ -6,14 +6,23 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.ImageFormat
+import android.hardware.camera2.CameraAccessException
+import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureFailure
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.TotalCaptureResult
+import android.media.ImageReader
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.util.Range
 import android.util.Size
+import android.view.Surface
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,7 +59,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import androidx.work.impl.close
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.Text
 import androidx.xr.projected.ProjectedContext
@@ -60,6 +68,7 @@ import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Arrays
+import java.util.Collections
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -184,11 +193,72 @@ class GlassesActivity : ComponentActivity() {
         Timber.d("ZZZ: --- End of Characteristics for Camera ID: $cameraId ---")
     }
 
+    private val captureCallback = object : CameraCaptureSession.CaptureCallback() {
+        override fun onCaptureCompleted(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            result: TotalCaptureResult,
+        ) {
+            Timber.i("ZZZ: onCaptureCompleted")
+        }
+
+        override fun onCaptureStarted(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            timestamp: Long,
+            frameNumber: Long
+        ) {
+            Timber.i("ZZZ: onCaptureStarted")
+        }
+
+        override fun onCaptureFailed(session: CameraCaptureSession, request: CaptureRequest, failure: CaptureFailure) {
+            Timber.i("ZZZ: onCaptureFailed: reason=${failure.reason}")
+        }
+
+        override fun onCaptureBufferLost(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            target: Surface,
+            frameNumber: Long
+        ) {
+            Timber.i("ZZZ: onCaptureBufferLost")
+        }
+    }
+
+    private val cameraSessionListener = object : CameraCaptureSession.StateCallback() {
+        override fun onConfigured(session: CameraCaptureSession) {
+            Timber.d("ZZZ: Camera capture session configured. handler=$handler")
+            // TODO: What to do with this?
+//            cameraStartedLatch.countDown();
+//            CameraStressSnippet.this.cameraCaptureSession = session;
+            try {
+                val id = session.capture(captureRequestBuilder.build(), captureCallback, handler)
+                Timber.d("ZZZ: Capture request id: $id")
+            } catch (e: CameraAccessException) {
+                Timber.e(e, "ZZZ: Camera access exception")
+            }
+        }
+
+        override fun onConfigureFailed(session: CameraCaptureSession) {
+            Timber.e("ZZZ: Camera capture session configuration failed.")
+        }
+    }
+
     private val cameraStateCallback = object : CameraDevice.StateCallback() {
         override fun onOpened(camera: CameraDevice) {
             Timber.d("ZZZ: Camera ${camera.id} opened successfully")
-            // The camera is open. You can now create a capture session.
-            // For now, we'll just log that it opened.
+
+            try {
+                captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+                captureRequestBuilder.addTarget(imageReader.surface)
+                camera.createCaptureSession(
+                    Collections.singletonList(imageReader.surface),
+                    cameraSessionListener,
+                    handler,
+                )
+            } catch (e: CameraAccessException) {
+                Timber.e(e, "ZZZ: Camera access exception")
+            }
         }
 
         override fun onDisconnected(camera: CameraDevice) {
@@ -202,6 +272,10 @@ class GlassesActivity : ComponentActivity() {
         }
     }
 
+    private lateinit var imageReader: ImageReader
+    private lateinit var handler: Handler
+    private lateinit var captureRequestBuilder: CaptureRequest.Builder
+
     @RequiresPermission(Manifest.permission.CAMERA)
     private suspend fun setUpCamera2() {
         Timber.d("ZZZ: setUpCamera2")
@@ -209,6 +283,7 @@ class GlassesActivity : ComponentActivity() {
         val cameraManager = getSystemService<CameraManager>()
         Timber.d("ZZZ: cameraManager: $cameraManager")
         check(cameraManager != null)
+        handler = Handler(Looper.getMainLooper())
 
         try {
             val cameraIds = cameraManager.cameraIdList
@@ -224,12 +299,17 @@ class GlassesActivity : ComponentActivity() {
             // Print characteristics for debugging
             val cameraCharacteristics = cameraManager.getCameraCharacteristics(firstCameraId)
             printCharacteristics(firstCameraId, cameraCharacteristics)
+            val width = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)?.width()
+            val height = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)?.height()
+            check(width != null && height != null)
+            Timber.d("ZZZ: Camera resolution: $width x $height")
+            imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1)
 
             // Request to open the camera
             cameraManager.openCamera(
                 firstCameraId,
-                ContextCompat.getMainExecutor(this),
-                cameraStateCallback
+                cameraStateCallback,
+                handler,
             )
 
         } catch (e: SecurityException) {
