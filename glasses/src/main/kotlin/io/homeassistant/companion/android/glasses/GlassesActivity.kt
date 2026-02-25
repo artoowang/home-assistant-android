@@ -144,15 +144,19 @@ class GlassesActivity : ComponentActivity() {
     }
 
     @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    @OptIn(ExperimentalProjectedApi::class)
     private suspend fun setUpCamera() {
         Timber.d("ZZZ: setUpCamera")
 
-        val cameraProvider = ProcessCameraProvider.getInstance(this).await()
+        // val cameraProvider = ProcessCameraProvider.getInstance(this).await()
+        val cameraProvider = ProcessCameraProvider.getInstance(ProjectedContext.createProjectedDeviceContext(this)).await()
         Timber.d("ZZZ: cameraProvider=$cameraProvider")
         Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
 
         // Is "back" the primary glasses camera? When using FRONT, it says no camera is found.
         val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+        check(cameraProvider.hasCamera(cameraSelector))
 
         val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
         val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
@@ -160,7 +164,7 @@ class GlassesActivity : ComponentActivity() {
             camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         Timber.d("ZZZ: cameraCharacteristics=$cameraCharacteristics")
 
-        val targetResolution = Size(640, 480)
+        val targetResolution = Size(1920, 1080)
         val resolutionStrategy = ResolutionStrategy(
             targetResolution,
             ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
@@ -170,17 +174,10 @@ class GlassesActivity : ComponentActivity() {
             .setResolutionStrategy(resolutionStrategy)
             .build()
 
-        // If you have other continuous use cases bound, such as Preview or ImageAnalysis, you can use  Camera2 Interop's CaptureRequestOptions to set the FPS
-        val fpsRange = Range(30, 30)
-        val captureRequestOptions = CaptureRequestOptions.Builder()
-            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,fpsRange)
-            .build()
-
         // Initialize the ImageCapture use case.
         val imageCapture = ImageCapture.Builder()
             // Optional: Configure resolution, format, etc.
             .setResolutionSelector(resolutionSelector)
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
 
         try {
