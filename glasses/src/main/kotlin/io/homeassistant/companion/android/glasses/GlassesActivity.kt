@@ -22,6 +22,7 @@ import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.impl.UseCaseConfigFactory.CaptureType
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -150,7 +151,7 @@ class GlassesActivity : ComponentActivity() {
         Timber.d("ZZZ: cameraProvider=$cameraProvider")
         Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
 
-        // Is "back" the primary glasses camera?
+        // Is "back" the primary glasses camera? When using FRONT, it says no camera is found.
         val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
         val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
@@ -159,7 +160,7 @@ class GlassesActivity : ComponentActivity() {
             camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         Timber.d("ZZZ: cameraCharacteristics=$cameraCharacteristics")
 
-        val targetResolution = Size(1920, 1080)
+        val targetResolution = Size(640, 480)
         val resolutionStrategy = ResolutionStrategy(
             targetResolution,
             ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
@@ -169,10 +170,17 @@ class GlassesActivity : ComponentActivity() {
             .setResolutionStrategy(resolutionStrategy)
             .build()
 
+        // If you have other continuous use cases bound, such as Preview or ImageAnalysis, you can use  Camera2 Interop's CaptureRequestOptions to set the FPS
+        val fpsRange = Range(30, 30)
+        val captureRequestOptions = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,fpsRange)
+            .build()
+
         // Initialize the ImageCapture use case.
         val imageCapture = ImageCapture.Builder()
             // Optional: Configure resolution, format, etc.
             .setResolutionSelector(resolutionSelector)
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
 
         try {
@@ -266,68 +274,6 @@ class GlassesActivity : ComponentActivity() {
         }
     }
 
-    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
-    @OptIn(ExperimentalProjectedApi::class)
-    private fun startCamera() {
-        // Get the CameraProvider using the projected context.
-
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(
-            ProjectedContext.createProjectedDeviceContext(this),
-        )
-
-        cameraProviderFuture.addListener(
-            {
-                // Used to bind the lifecycle of cameras to the lifecycle owner
-                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
-
-                // Select the camera. When using the projected context, DEFAULT_BACK_CAMERA maps to the AI glasses' camera.
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                // Check for the presence of a camera before initializing the ImageCapture use case.
-                if (!cameraProvider.hasCamera(cameraSelector)) {
-                    Timber.w("The selected camera is not available.")
-                    return@addListener
-                }
-
-                // Get supported streaming resolutions.
-                val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
-                val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
-
-                // Define the resolution strategy.
-                val targetResolution = Size(1920, 1080)
-                val resolutionStrategy = ResolutionStrategy(
-                    targetResolution,
-                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
-                )
-
-                val resolutionSelector = ResolutionSelector.Builder()
-                    .setResolutionStrategy(resolutionStrategy)
-                    .build()
-
-                // Initialize the ImageCapture use case.
-                val imageCapture = ImageCapture.Builder()
-                    // Optional: Configure resolution, format, etc.
-                    .setResolutionSelector(resolutionSelector)
-                    .build()
-
-                try {
-                    // Unbind use cases before rebinding
-                    cameraProvider.unbindAll()
-
-                    // 4. Bind use cases to camera
-                    cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, imageCapture)
-
-                } catch (exc: Exception) {
-                    // This catches exceptions like IllegalStateException if use case binding fails
-                    Timber.e(exc, "Use case binding failed")
-                }
-
-            },
-            ContextCompat.getMainExecutor(this),
-        )
-    }
-
     private fun setupContent() {
         setContent {
             GlimmerTheme {
@@ -339,7 +285,6 @@ class GlassesActivity : ComponentActivity() {
                             .background(Color.Black)
                             .clickable {
                                 // startAssistActivity()
-                                // startCamera()
                             },
                     ) {
                         // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
