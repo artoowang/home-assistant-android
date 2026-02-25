@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.os.Bundle
 import android.provider.MediaStore
@@ -16,6 +18,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
+import androidx.annotation.RequiresPermission
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
@@ -36,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toString
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,8 +47,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.concurrent.futures.await
 import androidx.core.content.ContextCompat
+import androidx.core.content.getSystemService
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import androidx.work.impl.close
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.Text
 import androidx.xr.projected.ProjectedContext
@@ -53,6 +59,7 @@ import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
+import java.util.Arrays
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -139,7 +146,96 @@ class GlassesActivity : ComponentActivity() {
         Timber.d("ZZZ: onResume")
 
         lifecycleScope.launch {
-            setUpCamera()
+            setUpCamera2()
+            // setUpCamera()
+        }
+    }
+
+    private fun printCharacteristics(cameraId: String, characteristics: CameraCharacteristics) {
+        // Log the camera ID to separate the characteristics for each camera
+        Timber.d("ZZZ: --- CameraCharacteristics for Camera ID: $cameraId ---")
+
+        // Get the list of all available keys for this camera's characteristics
+        val keys = characteristics.keys
+
+        if (keys.isEmpty()) {
+            Timber.d("ZZZ: No characteristics keys found for camera $cameraId")
+            return
+        }
+
+        // Loop through each key and print its corresponding value
+        for (key in keys) {
+            try {
+                val value = characteristics.get(key)
+                val valueString = when (value) {
+                    is Array<*> -> Arrays.toString(value) // Nicely format arrays
+                    is ByteArray -> value.joinToString(prefix = "[", postfix = "]")
+                    is IntArray -> value.joinToString(prefix = "[", postfix = "]")
+                    is FloatArray -> value.joinToString(prefix = "[", postfix = "]")
+                    // Add other array types if needed
+                    else -> value.toString()
+                }
+                Timber.d("ZZZ: Key: ${key.name}, Value: $valueString")
+            } catch (e: Exception) {
+                // Some keys might fail to retrieve, although it's rare
+                Timber.w("ZZZ: Could not get value for key ${key.name}")
+            }
+        }
+        Timber.d("ZZZ: --- End of Characteristics for Camera ID: $cameraId ---")
+    }
+
+    private val cameraStateCallback = object : CameraDevice.StateCallback() {
+        override fun onOpened(camera: CameraDevice) {
+            Timber.d("ZZZ: Camera ${camera.id} opened successfully")
+            // The camera is open. You can now create a capture session.
+            // For now, we'll just log that it opened.
+        }
+
+        override fun onDisconnected(camera: CameraDevice) {
+            Timber.w("ZZZ: Camera ${camera.id} was disconnected")
+            camera.close()
+        }
+
+        override fun onError(camera: CameraDevice, error: Int) {
+            Timber.e("ZZZ: Camera ${camera.id} encountered an error: $error")
+            camera.close()
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.CAMERA)
+    private suspend fun setUpCamera2() {
+        Timber.d("ZZZ: setUpCamera2")
+
+        val cameraManager = getSystemService<CameraManager>()
+        Timber.d("ZZZ: cameraManager: $cameraManager")
+        check(cameraManager != null)
+
+        try {
+            val cameraIds = cameraManager.cameraIdList
+            if (cameraIds.isEmpty()) {
+                Timber.w("ZZZ: No cameras found on this device.")
+                return
+            }
+
+            // Let's try to open the first camera in the list
+            val firstCameraId = cameraIds[0]
+            Timber.d("ZZZ: Attempting to open camera with ID: $firstCameraId")
+
+            // Print characteristics for debugging
+            val cameraCharacteristics = cameraManager.getCameraCharacteristics(firstCameraId)
+            printCharacteristics(firstCameraId, cameraCharacteristics)
+
+            // Request to open the camera
+            cameraManager.openCamera(
+                firstCameraId,
+                ContextCompat.getMainExecutor(this),
+                cameraStateCallback
+            )
+
+        } catch (e: SecurityException) {
+            Timber.e(e, "ZZZ: Failed to open camera due to security exception. Are permissions granted?")
+        } catch (e: Exception) {
+            Timber.e(e, "ZZZ: Failed to set up camera.")
         }
     }
 
