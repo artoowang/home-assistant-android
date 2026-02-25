@@ -1,5 +1,6 @@
 package io.homeassistant.companion.android
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.app.NotificationManager
 import android.bluetooth.BluetoothAdapter
@@ -59,9 +60,15 @@ open class HomeAssistantApplication :
     SingletonImageLoader.Factory,
     CameraXConfig.Provider {
 
+    @SuppressLint("RestrictedApi")
     override fun getCameraXConfig(): CameraXConfig {
         Timber.d("ZZZ: getCameraXConfig")
-        return CameraXConfig.Builder.fromConfig(Camera2Config.defaultConfig()).build()
+        val config = CameraXConfig.Builder.fromConfig(Camera2Config.defaultConfig())
+            // TODO: By doing this, it seems I can indeed suppress the MeteringRepeating use case being added.
+            .setRepeatingStreamForced(false)
+            .build()
+        Timber.d("ZZZ: getCameraXConfig: $config")
+        return config
     }
 
     private val ioScope: CoroutineScope = CoroutineScope(Dispatchers.IO + Job())
