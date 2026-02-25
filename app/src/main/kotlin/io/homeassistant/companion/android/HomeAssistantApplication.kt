@@ -11,6 +11,9 @@ import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.PowerManager
 import android.telephony.TelephonyManager
+import androidx.camera.camera2.Camera2Config
+import androidx.camera.core.CameraX
+import androidx.camera.core.CameraXConfig
 import androidx.compose.runtime.Composer
 import androidx.compose.runtime.ExperimentalComposeRuntimeApi
 import androidx.core.content.ContextCompat
@@ -53,7 +56,13 @@ import timber.log.Timber
 @HiltAndroidApp
 open class HomeAssistantApplication :
     Application(),
-    SingletonImageLoader.Factory {
+    SingletonImageLoader.Factory,
+    CameraXConfig.Provider {
+
+    override fun getCameraXConfig(): CameraXConfig {
+        Timber.d("ZZZ: getCameraXConfig")
+        return CameraXConfig.Builder.fromConfig(Camera2Config.defaultConfig()).build()
+    }
 
     private val ioScope: CoroutineScope = CoroutineScope(Dispatchers.IO + Job())
 
