@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -15,6 +17,7 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureFailure
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.TotalCaptureResult
+import android.media.Image
 import android.media.ImageReader
 import android.os.Bundle
 import android.os.Environment
@@ -69,6 +72,7 @@ import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -281,6 +285,56 @@ class GlassesActivity : ComponentActivity() {
     private lateinit var handler: Handler
     private lateinit var captureRequestBuilder: CaptureRequest.Builder
 
+    /**
+     * Converts an Image in YUV_420_888 format to a JPEG byte array.
+     */
+    private fun convertYuvToJpeg(image: Image): ByteArray {
+        // 1. Extract Y, U, and V planes into a single byte array.
+        val yBuffer = image.planes[0].buffer
+        val uBuffer = image.planes[1].buffer
+        val vBuffer = image.planes[2].buffer
+
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
+
+        val nv21 = ByteArray(ySize + uSize + vSize)
+
+        // U and V are swapped in NV21 format compared to YUV_420_888 plane order
+        yBuffer.get(nv21, 0, ySize)
+        vBuffer.get(nv21, ySize, vSize)
+        uBuffer.get(nv21, ySize + vSize, uSize)
+
+        // 2. Create a YuvImage.
+        // NV21 is a common format supported by YuvImage.
+        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+
+        // 3. Compress to JPEG.
+        val out = ByteArrayOutputStream()
+        yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 95, out) // 95% quality
+
+        return out.toByteArray()
+    }
+
+    /**
+     * Saves a byte array to a JPEG file in a background thread.
+     */
+    private fun saveBytesToFile(bytes: ByteArray) {
+        // Use a thread to avoid disk I/O on the handler's thread.
+        Thread {
+            val outputDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+            val outputFile = File(outputDir, "IMG_${System.currentTimeMillis()}.jpg")
+            try {
+                FileOutputStream(outputFile).use { output ->
+                    output.write(bytes)
+                    Timber.d("ZZZ: Image saved successfully to ${outputFile.absolutePath}")
+                }
+            } catch (e: IOException) {
+                Timber.e(e, "ZZZ: Error writing image to file")
+            }
+        }.start()
+    }
+
     @RequiresPermission(Manifest.permission.CAMERA)
     private suspend fun setUpCamera2() {
         Timber.d("ZZZ: setUpCamera2")
@@ -310,46 +364,29 @@ class GlassesActivity : ComponentActivity() {
             val width = 1024
             val height = 768
             Timber.d("ZZZ: Camera resolution: $width x $height")
-            imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1)
+            imageReader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 10)
             imageReader.setOnImageAvailableListener(
                 { reader ->
-                    Timber.d("ZZZ: New image available!")
-                    val image = reader.acquireLatestImage()
-                    if (image != null) {
-                        Timber.d("ZZZ: image: ${image.width} x ${image.height}, format=${image.format}")
+                    // acquireLatestImage must be paired with image.close() in a finally block
+                    val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
 
-                        // 1. Get the image bytes from the Image object.
-                        // For a JPEG image, the data is in the first and only plane.
-                        val buffer = image.planes[0].buffer
-                        val bytes = ByteArray(buffer.remaining())
-                        buffer.get(bytes)
+                    try {
+                        // Check if the image format is what we expect.
+                        if (image.format == ImageFormat.YUV_420_888) {
+                            Timber.d("ZZZ: New YUV image available: ${image.width}x${image.height}")
+                            // Convert YUV to JPEG bytes
+                            val jpegBytes = convertYuvToJpeg(image)
 
-                        // Make sure to close the image to free up memory.
+                            // Offload file saving to a background thread
+                            saveBytesToFile(jpegBytes)
+                        } else {
+                            Timber.w("ZZZ: Received image in unexpected format: ${image.format}")
+                        }
+                    } catch (e: Exception) {
+                        Timber.e(e, "ZZZ: Failed to process YUV image")
+                    } finally {
+                        // CRITICAL: Always close the image to free the buffer for the next frame.
                         image.close()
-
-                        // Use thread to avoid disk read/write violations.
-                        Thread {
-                            // 2. Create the output file.
-                            // This saves to the app's external files directory in Pictures.
-                            val outputDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-                            val outputFile = File(outputDir, "IMG_${System.currentTimeMillis()}.jpg")
-
-                            // 3. Write the bytes to the file
-                            var output: FileOutputStream? = null
-                            try {
-                                output = FileOutputStream(outputFile)
-                                output.write(bytes)
-                                Timber.d("ZZZ: Image saved successfully to ${outputFile.absolutePath}")
-                            } catch (e: IOException) {
-                                Timber.e(e, "ZZZ: Error writing image to file")
-                            } finally {
-                                try {
-                                    output?.close()
-                                } catch (e: IOException) {
-                                    Timber.e(e, "ZZZ: Error closing file output stream")
-                                }
-                            }
-                        }.start()
                     }
                 },
                 handler,
