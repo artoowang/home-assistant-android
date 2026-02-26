@@ -299,9 +299,11 @@ class GlassesActivity : ComponentActivity() {
             // Print characteristics for debugging
             val cameraCharacteristics = cameraManager.getCameraCharacteristics(firstCameraId)
             printCharacteristics(firstCameraId, cameraCharacteristics)
-            val width = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)?.width()
-            val height = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)?.height()
-            check(width != null && height != null)
+//            val width = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)?.width()
+//            val height = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)?.height()
+//            check(width != null && height != null)
+            val width = 1024
+            val height = 768
             Timber.d("ZZZ: Camera resolution: $width x $height")
             imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1)
 
