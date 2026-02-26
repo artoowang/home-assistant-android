@@ -316,7 +316,7 @@ class GlassesActivity : ComponentActivity() {
                     Timber.d("ZZZ: New image available!")
                     val image = reader.acquireLatestImage()
                     if (image != null) {
-                        Timber.d("ZZZ: image: ${image.width} x ${image.height}")
+                        Timber.d("ZZZ: image: ${image.width} x ${image.height}, format=${image.format}")
 
                         // 1. Get the image bytes from the Image object.
                         // For a JPEG image, the data is in the first and only plane.
@@ -327,26 +327,29 @@ class GlassesActivity : ComponentActivity() {
                         // Make sure to close the image to free up memory.
                         image.close()
 
-                        // 2. Create the output file.
-                        // This saves to the app's external files directory in Pictures.
-                        val outputDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-                        val outputFile = File(outputDir, "IMG_${System.currentTimeMillis()}.jpg")
+                        // Use thread to avoid disk read/write violations.
+                        Thread {
+                            // 2. Create the output file.
+                            // This saves to the app's external files directory in Pictures.
+                            val outputDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+                            val outputFile = File(outputDir, "IMG_${System.currentTimeMillis()}.jpg")
 
-                        // 3. Write the bytes to the file
-                        var output: FileOutputStream? = null
-                        try {
-                            output = FileOutputStream(outputFile)
-                            output.write(bytes)
-                            Timber.d("ZZZ: Image saved successfully to ${outputFile.absolutePath}")
-                        } catch (e: IOException) {
-                            Timber.e(e, "ZZZ: Error writing image to file")
-                        } finally {
+                            // 3. Write the bytes to the file
+                            var output: FileOutputStream? = null
                             try {
-                                output?.close()
+                                output = FileOutputStream(outputFile)
+                                output.write(bytes)
+                                Timber.d("ZZZ: Image saved successfully to ${outputFile.absolutePath}")
                             } catch (e: IOException) {
-                                Timber.e(e, "ZZZ: Error closing file output stream")
+                                Timber.e(e, "ZZZ: Error writing image to file")
+                            } finally {
+                                try {
+                                    output?.close()
+                                } catch (e: IOException) {
+                                    Timber.e(e, "ZZZ: Error closing file output stream")
+                                }
                             }
-                        }
+                        }.start()
                     }
                 },
                 handler,
