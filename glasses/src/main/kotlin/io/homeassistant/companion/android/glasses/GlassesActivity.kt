@@ -17,6 +17,7 @@ import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.TotalCaptureResult
 import android.media.ImageReader
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -59,6 +60,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import androidx.work.impl.close
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.Text
 import androidx.xr.projected.ProjectedContext
@@ -67,6 +69,9 @@ import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.util.Arrays
 import java.util.Collections
 import kotlinx.coroutines.Dispatchers
@@ -206,7 +211,7 @@ class GlassesActivity : ComponentActivity() {
             session: CameraCaptureSession,
             request: CaptureRequest,
             timestamp: Long,
-            frameNumber: Long
+            frameNumber: Long,
         ) {
             Timber.i("ZZZ: onCaptureStarted")
         }
@@ -219,7 +224,7 @@ class GlassesActivity : ComponentActivity() {
             session: CameraCaptureSession,
             request: CaptureRequest,
             target: Surface,
-            frameNumber: Long
+            frameNumber: Long,
         ) {
             Timber.i("ZZZ: onCaptureBufferLost")
         }
@@ -306,6 +311,46 @@ class GlassesActivity : ComponentActivity() {
             val height = 768
             Timber.d("ZZZ: Camera resolution: $width x $height")
             imageReader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1)
+            imageReader.setOnImageAvailableListener(
+                { reader ->
+                    Timber.d("ZZZ: New image available!")
+                    val image = reader.acquireLatestImage()
+                    if (image != null) {
+                        Timber.d("ZZZ: image: ${image.width} x ${image.height}")
+
+                        // 1. Get the image bytes from the Image object.
+                        // For a JPEG image, the data is in the first and only plane.
+                        val buffer = image.planes[0].buffer
+                        val bytes = ByteArray(buffer.remaining())
+                        buffer.get(bytes)
+
+                        // Make sure to close the image to free up memory.
+                        image.close()
+
+                        // 2. Create the output file.
+                        // This saves to the app's external files directory in Pictures.
+                        val outputDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+                        val outputFile = File(outputDir, "IMG_${System.currentTimeMillis()}.jpg")
+
+                        // 3. Write the bytes to the file
+                        var output: FileOutputStream? = null
+                        try {
+                            output = FileOutputStream(outputFile)
+                            output.write(bytes)
+                            Timber.d("ZZZ: Image saved successfully to ${outputFile.absolutePath}")
+                        } catch (e: IOException) {
+                            Timber.e(e, "ZZZ: Error writing image to file")
+                        } finally {
+                            try {
+                                output?.close()
+                            } catch (e: IOException) {
+                                Timber.e(e, "ZZZ: Error closing file output stream")
+                            }
+                        }
+                    }
+                },
+                handler,
+            )
 
             // Request to open the camera
             cameraManager.openCamera(
