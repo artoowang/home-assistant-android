@@ -243,19 +243,12 @@ class GlassesActivity : ComponentActivity() {
             }
 
             try {
-                handler.postDelayed({
-                    try {
-                        val captureBuilder = currentCamera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
-                        captureBuilder.addTarget(imageReader.surface)
-                        val id = session.capture(captureBuilder.build(), captureCallback, handler)
-                        Timber.d("ZZZ: Capture request id: $id")
-                    } catch (e: CameraAccessException) {
-                        Timber.e(e, "ZZZ: Capture failed")
-                    }
-                }, 500)
-
+                val captureBuilder = currentCamera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+                captureBuilder.addTarget(imageReader.surface)
+                val id = session.capture(captureBuilder.build(), captureCallback, handler)
+                Timber.d("ZZZ: Capture request id: $id")
             } catch (e: CameraAccessException) {
-                Timber.e(e, "ZZZ: Camera access exception")
+                Timber.e(e, "ZZZ: Capture failed")
             }
         }
 
