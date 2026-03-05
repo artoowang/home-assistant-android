@@ -165,7 +165,6 @@ class GlassesActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             setUpCamera2()
-            // setUpCamera()
         }
     }
 
@@ -260,6 +259,11 @@ class GlassesActivity : ComponentActivity() {
             try {
                 captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
                 captureRequestBuilder.addTarget(imageReader.surface)
+
+                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                captureRequestBuilder.set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+                captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+
                 camera.createCaptureSession(
                     Collections.singletonList(imageReader.surface),
                     cameraSessionListener,
@@ -403,62 +407,6 @@ class GlassesActivity : ComponentActivity() {
             Timber.e(e, "ZZZ: Failed to open camera due to security exception. Are permissions granted?")
         } catch (e: Exception) {
             Timber.e(e, "ZZZ: Failed to set up camera.")
-        }
-    }
-
-    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
-    @OptIn(ExperimentalProjectedApi::class)
-    private suspend fun setUpCamera() {
-        Timber.d("ZZZ: setUpCamera")
-
-        // val cameraProvider = ProcessCameraProvider.getInstance(this).await()
-        val cameraProvider = ProcessCameraProvider.getInstance(ProjectedContext.createProjectedDeviceContext(this)).await()
-        Timber.d("ZZZ: cameraProvider=$cameraProvider")
-        Timber.d("ZZZ: cameraProvider.availableCameraInfos=${cameraProvider.availableCameraInfos}")
-
-        // Is "back" the primary glasses camera? When using FRONT, it says no camera is found.
-        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-        check(cameraProvider.hasCamera(cameraSelector))
-
-        val cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
-        val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
-        val cameraCharacteristics =
-            camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-        Timber.d("ZZZ: cameraCharacteristics=$cameraCharacteristics")
-
-        val targetResolution = Size(1920, 1080)
-        val resolutionStrategy = ResolutionStrategy(
-            targetResolution,
-            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER,
-        )
-
-        val resolutionSelector = ResolutionSelector.Builder()
-            .setResolutionStrategy(resolutionStrategy)
-            .build()
-
-        // Initialize the ImageCapture use case.
-        val imageCapture = ImageCapture.Builder()
-            // Optional: Configure resolution, format, etc.
-            .setResolutionSelector(resolutionSelector)
-            .build()
-
-        try {
-            // Unbind use cases before rebinding
-            cameraProvider.unbindAll()
-
-            // 4. Bind use cases to camera
-            cameraProvider.bindToLifecycle(
-                this as LifecycleOwner,
-                cameraSelector,
-                imageCapture,
-            )
-
-            Timber.d("ZZZ: imageCapture=$imageCapture")
-            takePhoto(this, imageCapture)
-        } catch (exc: Exception) {
-            // This catches exceptions like IllegalStateException if use case binding fails
-            Timber.e(exc, "Use case binding failed")
         }
     }
 
