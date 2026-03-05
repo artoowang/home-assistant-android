@@ -243,22 +243,10 @@ class GlassesActivity : ComponentActivity() {
             }
 
             try {
-                val previewBuilder = currentCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                previewBuilder.addTarget(imageReader.surface)
-                previewBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                previewBuilder.set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
-                previewBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-
-                session.setRepeatingRequest(previewBuilder.build(), captureCallback, handler)
-                Timber.d("ZZZ: Started repeating preview request for 3A to converge")
-
                 handler.postDelayed({
                     try {
                         val captureBuilder = currentCamera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
                         captureBuilder.addTarget(imageReader.surface)
-                        captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                        captureBuilder.set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
-                        captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
                         val id = session.capture(captureBuilder.build(), captureCallback, handler)
                         Timber.d("ZZZ: Capture request id: $id")
                     } catch (e: CameraAccessException) {
@@ -488,6 +476,11 @@ class GlassesActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Timber.d("ZZZ: onDestroy")
+        camera?.close()
+        camera = null
+        if (::imageReader.isInitialized) {
+            imageReader.close()
+        }
     }
 
     // Launches the assist activity for glasses.
