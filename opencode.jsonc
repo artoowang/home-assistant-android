@@ -7,10 +7,11 @@
         // -------------------------------------------------------------------------
         // Allowed permissions.
 
-        "read": "allow",
         "glob": "allow",
         "grep": "allow",
         "list": "allow",
+        "read": "allow",
+        "todowrite": "allow",
 
         // -------------------------------------------------------------------------
         // Allowed external directories.
