@@ -21,7 +21,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -30,6 +30,9 @@ android {
 dependencies {
     implementation(project(":common"))
     implementation(libs.activity.compose)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.concurrent.ktx)
     implementation(libs.androidx.material3)
     implementation(libs.appcompat)
     implementation(libs.community.material.typeface)

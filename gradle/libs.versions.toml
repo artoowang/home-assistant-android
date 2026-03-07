@@ -22,6 +22,8 @@ androidxTestRunner = "1.7.0"
 appcompat = "1.7.1"
 biometric = "1.1.0"
 blurView = "version-2.0.6"
+cameraLifecycle = "1.5.2"
+cameraCamera2 = "1.5.2"
 car-versions = "1.7.0"
 changeLog = "3.8.1"
 community-material-typeface = "7.0.96.2-kotlin"
@@ -155,6 +157,8 @@ androidx-test-runner = { group = "androidx.test", name = "runner", version.ref =
 appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 blurView = { module = "com.github.Dimezis:BlurView", version.ref = "blurView" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCamera2" }
 car-core = { module = "androidx.car.app:app", version.ref = "car-versions" }
 car-automotive = { module = "androidx.car.app:app-automotive", version.ref = "car-versions" }
 car-projected = { module = "androidx.car.app:app-projected", version.ref = "car-versions" }
