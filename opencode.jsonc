@@ -23,7 +23,8 @@
     // Granular controls.
 
     "edit": {
-      "*": "ask",
+      "app/**": "allow",
+      "glasses/**": "allow",
     },
     "bash": {
       "*": "ask",
