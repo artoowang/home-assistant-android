@@ -29,6 +29,9 @@
         },
         "bash": {
             "*": "ask",
+            // ADB commands.
+            "adb devices": "allow",
+            "adb shell pm list packages": "allow",
             "ls *": "allow",
             "cat *": "allow",
             "git log *": "allow",
@@ -40,6 +43,7 @@
             "./gradlew ktlintFormat": "allow",
             "./gradlew :build-logic:convention:ktlintFormat ktlintFormat": "allow",
             // Build commands.
+            "./gradlew :app:assembleDebug *": "allow",
             "./gradlew :glasses:assembleDebug *": "allow",
         },
     }
