@@ -1,37 +1,40 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    // By default, all permissions are set to "ask".
-    "*": "ask",
+    "$schema": "https://opencode.ai/config.json",
+    "permission": {
+        // By default, all permissions are set to "ask".
+        "*": "ask",
 
-    // -------------------------------------------------------------------------
-    // Allowed permissions.
+        // -------------------------------------------------------------------------
+        // Allowed permissions.
 
-    "read": "allow",
-    "glob": "allow",
-    "grep": "allow",
-    "list": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
 
-    // -------------------------------------------------------------------------
-    // Allowed external directories.
+        // -------------------------------------------------------------------------
+        // Allowed external directories.
 
-    "external_directory": {
-      "/Users/ollama/log/ollama.err.log": "allow",
-    },
+        "external_directory": {
+            "/Users/ollama/log/ollama.err.log": "allow",
+        },
 
-    // -------------------------------------------------------------------------
-    // Granular controls.
+        // -------------------------------------------------------------------------
+        // Granular controls.
 
-    "edit": {
-      "app/**": "allow",
-      "glasses/**": "allow",
-    },
-    "bash": {
-      "*": "ask",
-      "ls *": "allow",
-      "cat *": "allow",
-      "grep *": "allow",
-      "tail *": "allow",
-    },
-  }
+        "edit": {
+            "app/**": "allow",
+            "glasses/**": "allow",
+        },
+        "bash": {
+            "*": "ask",
+            "ls *": "allow",
+            "cat *": "allow",
+            "git log *": "allow",
+            "git show *": "allow",
+            "grep *": "allow",
+            "tail *": "allow",
+            "./gradlew :glasses:assembleDebug": "allow",
+        },
+    }
 }
