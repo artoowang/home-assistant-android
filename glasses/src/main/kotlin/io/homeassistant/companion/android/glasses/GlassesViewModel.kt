@@ -29,8 +29,10 @@ class GlassesViewModel @Inject constructor(
 
     // Starts the assist session and starts to record (if the session is not already started).
     fun maybeStartAssistAndRecording() {
-        Timber.d("ZZZ: startAssistAndRecording, viewModel=$this, " +
-            "assistState=${assistRepository.assistState.value}")
+        Timber.d(
+            "ZZZ: startAssistAndRecording, viewModel=$this, " +
+                "assistState=${assistRepository.assistState.value}",
+        )
 
         if (assistRepository.assistState.value != null) {
             // Assist session has already started. No-op.

@@ -43,7 +43,7 @@ class GlassesAssistActivity : ComponentActivity() {
                     VoiceAssistScreen(
                         micState = buildMicState(
                             assistState = assistState,
-                            lastRecordedLevel = viewModel.lastRecordedLevel
+                            lastRecordedLevel = viewModel.lastRecordedLevel,
                         ),
                         conversation = viewModel.conversation,
                         toggleMicrophone = { viewModel.toggleMicrophone() },
@@ -70,10 +70,7 @@ class GlassesAssistActivity : ComponentActivity() {
 
     // Builds the MicState for UI.
     // TODO: This is to practice separating ViewModel states from UI / Composable states.
-    private fun buildMicState(
-        assistState: AssistRepository.AssistState,
-        lastRecordedLevel: Float?,
-    ): MicState? {
+    private fun buildMicState(assistState: AssistRepository.AssistState, lastRecordedLevel: Float?): MicState? {
         return when (assistState) {
             // Mic is recording and shows last recorded level when assist state is VOICE_ACTIVE.
             AssistRepository.AssistState.VOICE_ACTIVE -> {

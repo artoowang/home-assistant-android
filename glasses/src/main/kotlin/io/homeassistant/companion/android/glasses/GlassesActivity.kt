@@ -46,7 +46,6 @@ fun launchGlassesExperience(context: Context) {
 
         context.startActivity(intent, options.toBundle())
         Timber.i("Successfully sent launch intent to the projected device.")
-
     } catch (e: IllegalStateException) {
         Timber.e("Projected device not ready: ${e.message}")
     } catch (e: Exception) {
@@ -145,7 +144,7 @@ class GlassesActivity : ComponentActivity() {
                             .background(Color.Black)
                             .clickable {
                                 startAssistActivity()
-                            }
+                            },
                     ) {
                         // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
                         // the screen?
@@ -169,7 +168,7 @@ fun PermissionNotice() {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.Black),
     ) {
         Text(
             text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",

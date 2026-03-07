@@ -28,10 +28,10 @@ import com.mikepenz.iconics.compose.Image
 import com.mikepenz.iconics.typeface.library.community.material.CommunityMaterial
 import io.homeassistant.companion.android.common.assist.AssistMessage
 import kotlin.math.min
-import timber.log.Timber
 
 private val DefaultListItemHeight = 64.dp
 private val ListItemSpacing = 12.dp
+
 // Lists should only show three items or less within a view.
 // https://developer.android.com/develop/xr/jetpack-xr-sdk/jetpack-compose-glimmer/lists
 private const val MaxItemsInList = 3
@@ -42,19 +42,12 @@ internal const val EmulatorScreenWidthDp = 450
 internal const val EmulatorScreenHeightDp = 394
 
 // This contains the microphone states for UI.
-data class MicState(
-    val recording: Boolean,
-    val lastRecordedLevel: Float,
-)
+data class MicState(val recording: Boolean, val lastRecordedLevel: Float)
 
 // `micState` is null if the microphone is not enabled. Otherwise, it indicates the current state of the microphone.
 // See MicState.
 @Composable
-fun VoiceAssistScreen(
-    micState: MicState?,
-    conversation: List<AssistMessage>,
-    toggleMicrophone: () -> Unit,
-) {
+fun VoiceAssistScreen(micState: MicState?, conversation: List<AssistMessage>, toggleMicrophone: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -85,17 +78,16 @@ fun VoiceAssistScreen(
 
 // Represents a list of ChatItems, and an exit button.
 @Composable
-private fun ChatListView(
-    conversation: List<AssistMessage>,
-    toggleMicrophone: () -> Unit,
-) {
+private fun ChatListView(conversation: List<AssistMessage>, toggleMicrophone: () -> Unit) {
     // Used to scroll list. This is "remembered" so it persists across recompositions.
     val listState = rememberListState()
 
     // Number of chat strings plus the exit button.
     val totalItems = conversation.size + 1
-    val listHeight = (min(totalItems, MaxItemsInList) * DefaultListItemHeight.value +
-        min(totalItems - 1, MaxItemsInList) * ListItemSpacing.value)
+    val listHeight = (
+        min(totalItems, MaxItemsInList) * DefaultListItemHeight.value +
+            min(totalItems - 1, MaxItemsInList) * ListItemSpacing.value
+        )
 
     if (conversation.isNotEmpty()) {
         // Scroll to the last conversation item when it changes.
@@ -139,10 +131,7 @@ private fun ChatListView(
 
 // Represents a single chat conversation entry. `modifier` is used for ListItem.
 @Composable
-private fun ChatItem(
-    msg: AssistMessage,
-    toggleMicrophone: () -> Unit,
-) {
+private fun ChatItem(msg: AssistMessage, toggleMicrophone: () -> Unit) {
     val textColor = when {
         msg.isError -> GlimmerTheme.colors.negative
         msg.isInput -> GlimmerTheme.colors.outline
