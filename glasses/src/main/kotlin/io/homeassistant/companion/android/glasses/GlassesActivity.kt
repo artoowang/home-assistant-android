@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.Text
 import androidx.xr.projected.ProjectedContext
@@ -31,6 +32,7 @@ import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 @OptIn(ExperimentalProjectedApi::class)
@@ -55,12 +57,11 @@ fun launchGlassesExperience(context: Context) {
 
 @AndroidEntryPoint
 class GlassesActivity : ComponentActivity() {
-    // -----------------------------------------------------------------------------------------------------------------
-    // Permission Utilities.
 
     // Keeps track if the required permissions by glasses are granted.
     private var isPermissionsGranted by mutableStateOf(false)
     private val requiredPermissions = listOf(
+        Manifest.permission.CAMERA,
         Manifest.permission.RECORD_AUDIO,
     )
 
@@ -71,40 +72,48 @@ class GlassesActivity : ComponentActivity() {
                 results[permission] == true
             }
             isPermissionsGranted = granted
-            setupContent()
         }
 
-    private fun checkAllPermissionsGranted(): Boolean {
-        return requiredPermissions.all { permission ->
-            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+    private val camera2Controller by lazy { Camera2Controller(this) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        setContent {
+            GlimmerTheme {
+                if (isPermissionsGranted) {
+                    MainScreen(
+                        onClick = {
+                            startAssistActivity()
+                            // TODO: Uncomment this to test capturing
+                            // startCamera()
+                        },
+                    )
+                } else {
+                    PermissionNotice()
+                }
+            }
         }
+
+        requestPermissions()
     }
 
     @OptIn(ExperimentalProjectedApi::class)
     private fun requestPermissions() {
-        requestPermissionLauncher.launch(
-            listOf(
-                ProjectedPermissionsRequestParams(
-                    permissions = requiredPermissions,
-                    rationale = "We need microphone access to continue to the main experience.",
+        if (requiredPermissions.all { permission ->
+                ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+            }
+        ) {
+            isPermissionsGranted = true
+        } else {
+            requestPermissionLauncher.launch(
+                listOf(
+                    ProjectedPermissionsRequestParams(
+                        permissions = requiredPermissions,
+                        rationale = "We need microphone and camera access to continue.",
+                    ),
                 ),
-            ),
-        )
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        Timber.d("ZZZ: onCreate: savedInstanceState=$savedInstanceState")
-
-        val allGranted = checkAllPermissionsGranted()
-        isPermissionsGranted = allGranted
-
-        setupContent()
-
-        if (!allGranted) {
-            requestPermissions()
+            )
         }
     }
 
@@ -121,6 +130,7 @@ class GlassesActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Timber.d("ZZZ: onDestroy")
+        camera2Controller.close()
     }
 
     // Launches the assist activity for glasses.
@@ -133,32 +143,37 @@ class GlassesActivity : ComponentActivity() {
         }
     }
 
-    private fun setupContent() {
-        setContent {
-            GlimmerTheme {
-                when {
-                    isPermissionsGranted -> Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black)
-                            .clickable {
-                                startAssistActivity()
-                            },
-                    ) {
-                        // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
-                        // the screen?
-                        Image(
-                            painter = painterResource(id = R.drawable.ha_icon),
-                            contentDescription = "Home Assistant Icon",
-                            modifier = Modifier.size(GlimmerTheme.iconSizes.large),
-                        )
-                    }
+    // TODO: Test capturing from camera
+    private fun startCamera() {
+        if (!isPermissionsGranted) {
+            Timber.w("Cannot start camera: permission is not granted.")
+            return
+        }
 
-                    else -> PermissionNotice()
-                }
+        lifecycleScope.launch {
+            camera2Controller.startCamera { jpegBytes ->
+                Timber.d("ZZZ: Image captured, size: ${jpegBytes.size}")
             }
         }
+    }
+}
+
+@Composable
+private fun MainScreen(onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable { onClick() },
+    ) {
+        // TODO: Probably want to remove this for the actual UX on Glasses, so we won't have a large icon always on
+        // the screen?
+        Image(
+            painter = painterResource(id = R.drawable.ha_icon),
+            contentDescription = "Home Assistant Icon",
+            modifier = Modifier.size(GlimmerTheme.iconSizes.large),
+        )
     }
 }
 
@@ -172,7 +187,7 @@ fun PermissionNotice() {
     ) {
         Text(
             text = "Permissions Denied. Please grant Audio access on the host phone to proceed.",
-            color = Color(0xFFFF0000),
+            color = Color.White,
         )
     }
 }
