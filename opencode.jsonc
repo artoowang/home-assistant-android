@@ -34,12 +34,13 @@
             "git log *": "allow",
             "git show *": "allow",
             "grep *": "allow",
+            "head *": "allow",
             "tail *": "allow",
             // KTLint commands.
             "./gradlew ktlintFormat": "allow",
             "./gradlew :build-logic:convention:ktlintFormat ktlintFormat": "allow",
             // Build commands.
-            "./gradlew :glasses:assembleDebug": "allow",
+            "./gradlew :glasses:assembleDebug *": "allow",
         },
     }
 }
