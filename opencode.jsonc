@@ -31,6 +31,9 @@
             "*": "ask",
             // ADB commands.
             "adb devices": "allow",
+            "adb install * app-full-debug.apk": "allow",
+            "adb logcat *": "allow",
+            "adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER io.homeassistant.companion.android.debug/io.homeassistant.companion.android.launch.LaunchActivity": "allow",
             "adb shell pm list packages": "allow",
             "ls *": "allow",
             "cat *": "allow",
@@ -44,7 +47,9 @@
             "./gradlew :build-logic:convention:ktlintFormat ktlintFormat": "allow",
             // Build commands.
             "./gradlew :app:assembleDebug *": "allow",
+            "./gradlew :app:assembleFullDebug *": "allow",
             "./gradlew :glasses:assembleDebug *": "allow",
+            "./gradlew :glasses:assembleFullDebug *": "allow"
         },
     }
 }

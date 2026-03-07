@@ -15,11 +15,24 @@ This project is entirely made with Kotlin and it should stay like this.
 # Debug build (full and minimal)
 ./gradlew assembleDebug
 
+# Debug build (full app for regular Android phones with Google Play Services)
+./gradlew :app:assembleFullDebug
+
 # Run all tests
 ./gradlew test
 
 # Run tests for a specific module
 ./gradlew :common:test
+```
+
+### Installing and Running the App
+
+```bash
+# Install the full app debug build
+adb install -r app/build/outputs/apk/full/debug/app-full-debug.apk
+
+# Run the app
+adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER io.homeassistant.companion.android.debug/io.homeassistant.companion.android.launch.LaunchActivity
 ```
 
 ### Code Quality
@@ -436,17 +449,6 @@ fun NavGraphBuilder.featureNavGraph() {
 - **LogCat filtering**: Use tags to filter logs effectively (Timber uses class name as tag by default)
 - **Network debugging**: Use OkHttp interceptors for logging network requests in debug builds
 - **Database inspection**: Use Android Studio's App Inspection tool to view Room database
-- **Running the app**: See [Development Commands](#development-commands) below
-
-## Development Commands
-
-### Running the App
-
-To launch the app on a connected Android device:
-
-```bash
-adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER io.homeassistant.companion.android.debug/io.homeassistant.companion.android.launch.LaunchActivity
-```
 
 ## Deep Linking
 
