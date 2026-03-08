@@ -1,5 +1,6 @@
 package io.homeassistant.companion.android.glasses
 
+import android.Manifest
 import android.content.Context
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraAccessException
@@ -12,6 +13,7 @@ import android.hardware.camera2.TotalCaptureResult
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
+import androidx.annotation.RequiresPermission
 import timber.log.Timber
 import java.util.Collections
 
@@ -23,15 +25,25 @@ class Camera2Controller(private val context: Context) {
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
 
+    // Client provided callback to invoke when we receive image data.
+    private var onImageCaptured: ((ByteArray) -> Unit)? = null
+
     private val cameraManager: CameraManager by lazy {
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     }
 
-    fun startCamera(onImageCaptured: (ByteArray) -> Unit) {
-        Timber.d("ZZZ: Camera2Controller.startCamera")
+    // TODO: Do we need this?
+    val isCameraOpen: Boolean
+        get() = camera != null && captureSession != null
+
+    @RequiresPermission(Manifest.permission.CAMERA)
+    fun openCamera(onImageCaptured: (ByteArray) -> Unit) {
+        Timber.d("ZZZ: Camera2Controller.openCamera")
 
         handlerThread = HandlerThread("Camera2Controller").also { it.start() }
         handler = Handler(handlerThread!!.looper)
+
+        this.onImageCaptured = onImageCaptured
 
         try {
             val cameraId = getFirstCameraId() ?: run {
@@ -78,6 +90,44 @@ class Camera2Controller(private val context: Context) {
         }
     }
 
+    fun capturePhoto() {
+        val currentCamera = camera
+        val session = captureSession
+
+        if (session == null || currentCamera == null) {
+            Timber.w("ZZZ: Cannot capture photo: camera not ready")
+            return
+        }
+
+        try {
+            val builder = currentCamera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+            builder.addTarget(imageReader!!.surface)
+            session.capture(builder.build(), createCaptureCallback(), handler)
+        } catch (e: CameraAccessException) {
+            Timber.e(e, "ZZZ: Capture failed")
+        }
+    }
+
+    fun closeCamera() {
+        Timber.d("ZZZ: Camera2Controller.closeCamera")
+
+        imageReader?.setOnImageAvailableListener(null, handler)
+
+        captureSession?.close()
+        captureSession = null
+
+        camera?.close()
+        camera = null
+
+        imageReader?.close()
+        imageReader = null
+
+        handlerThread?.quitSafely()
+        handlerThread = null
+        handler = null
+        onImageCaptured = null
+    }
+
     private fun getFirstCameraId(): String? {
         return cameraManager.cameraIdList.firstOrNull()
     }
@@ -116,20 +166,6 @@ class Camera2Controller(private val context: Context) {
             override fun onConfigured(session: CameraCaptureSession) {
                 Timber.d("ZZZ: Session configured")
                 captureSession = session
-
-                val currentCamera = camera ?: run {
-                    Timber.e("ZZZ: Camera not available")
-                    return
-                }
-
-                try {
-                    val captureBuilder = currentCamera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
-                    captureBuilder.addTarget(imageReader!!.surface)
-
-                    session.capture(captureBuilder.build(), createCaptureCallback(), handler)
-                } catch (e: CameraAccessException) {
-                    Timber.e(e, "ZZZ: Capture failed")
-                }
             }
 
             override fun onConfigureFailed(session: CameraCaptureSession) {
@@ -156,24 +192,5 @@ class Camera2Controller(private val context: Context) {
                 Timber.e("ZZZ: Capture failed: ${failure.reason}")
             }
         }
-    }
-
-    fun close() {
-        Timber.d("ZZZ: Camera2Controller.close")
-
-        imageReader?.setOnImageAvailableListener(null, handler)
-
-        captureSession?.close()
-        captureSession = null
-
-        camera?.close()
-        camera = null
-
-        imageReader?.close()
-        imageReader = null
-
-        handlerThread?.quitSafely()
-        handlerThread = null
-        handler = null
     }
 }

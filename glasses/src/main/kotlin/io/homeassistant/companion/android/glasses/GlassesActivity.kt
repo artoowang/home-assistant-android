@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,8 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.Text
 import androidx.xr.projected.ProjectedContext
@@ -32,7 +33,6 @@ import androidx.xr.projected.experimental.ExperimentalProjectedApi
 import androidx.xr.projected.permissions.ProjectedPermissionsRequestParams
 import androidx.xr.projected.permissions.ProjectedPermissionsResultContract
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 import timber.log.Timber
 
 @OptIn(ExperimentalProjectedApi::class)
@@ -84,9 +84,7 @@ class GlassesActivity : ComponentActivity() {
                 if (isPermissionsGranted) {
                     MainScreen(
                         onClick = {
-                            startAssistActivity()
-                            // TODO: Uncomment this to test capturing
-                            // startCamera()
+                            camera2Controller.capturePhoto()
                         },
                     )
                 } else {
@@ -117,20 +115,30 @@ class GlassesActivity : ComponentActivity() {
         }
     }
 
+    @RequiresPermission(Manifest.permission.CAMERA)
     override fun onResume() {
         super.onResume()
         Timber.d("ZZZ: onResume")
+
+        if (isPermissionsGranted) {
+            camera2Controller.openCamera { jpegBytes ->
+                Timber.d("ZZZ: Image captured, size: ${jpegBytes.size}")
+            }
+        } else {
+            Timber.e("ZZZ: Cannot open camera: permission not granted")
+        }
     }
 
     override fun onPause() {
         super.onPause()
         Timber.d("ZZZ: onPause")
+        camera2Controller.closeCamera()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Timber.d("ZZZ: onDestroy")
-        camera2Controller.close()
+        camera2Controller.closeCamera()
     }
 
     // Launches the assist activity for glasses.
@@ -140,20 +148,6 @@ class GlassesActivity : ComponentActivity() {
             startActivity(intent)
         } catch (e: Exception) {
             Timber.e("Error during launch: ${e.message}")
-        }
-    }
-
-    // TODO: Test capturing from camera
-    private fun startCamera() {
-        if (!isPermissionsGranted) {
-            Timber.w("Cannot start camera: permission is not granted.")
-            return
-        }
-
-        lifecycleScope.launch {
-            camera2Controller.startCamera { jpegBytes ->
-                Timber.d("ZZZ: Image captured, size: ${jpegBytes.size}")
-            }
         }
     }
 }
