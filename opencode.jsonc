@@ -46,6 +46,8 @@
             "./gradlew ktlintFormat": "allow",
             "./gradlew :build-logic:convention:ktlintFormat ktlintFormat": "allow",
             "./gradlew :glasses:ktlintCheck *": "allow",
+            "./gradlew :glasses:ktlintFormat *": "allow",
+            "./gradlew :glasses:runKtlintFormatOverMainSourceSet *": "allow",
             // Build commands.
             "./gradlew :app:assembleDebug *": "allow",
             "./gradlew :app:assembleFullDebug *": "allow",

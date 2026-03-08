@@ -155,6 +155,7 @@ if (serverManager.getServer()?.version?.isAtLeast(2025, 6, 0) == true) {
 - Use immutable classes exposing copy function or functions that returns a new instance of the class with the modified value to store data.
 - Never use strings for logic
 - When calling a function with parameters of the same type or primitive types use named parameters instead of relying on the order of the parameters.
+- Put private functions after public ones.
 
 ### File Organization
 
