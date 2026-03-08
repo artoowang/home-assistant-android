@@ -45,11 +45,12 @@
             // KTLint commands.
             "./gradlew ktlintFormat": "allow",
             "./gradlew :build-logic:convention:ktlintFormat ktlintFormat": "allow",
+            "./gradlew :glasses:ktlintCheck *": "allow",
             // Build commands.
             "./gradlew :app:assembleDebug *": "allow",
             "./gradlew :app:assembleFullDebug *": "allow",
             "./gradlew :glasses:assembleDebug *": "allow",
-            "./gradlew :glasses:assembleFullDebug *": "allow"
+            "./gradlew :glasses:assembleFullDebug *": "allow",
         },
     }
 }
