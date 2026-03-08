@@ -49,8 +49,10 @@
             // Build commands.
             "./gradlew :app:assembleDebug *": "allow",
             "./gradlew :app:assembleFullDebug *": "allow",
+            "./gradlew :app:compileDebugKotlin *": "allow",
             "./gradlew :glasses:assembleDebug *": "allow",
             "./gradlew :glasses:assembleFullDebug *": "allow",
+            "./gradlew :glasses:compileDebugKotlin *": "allow",
         },
     }
 }
