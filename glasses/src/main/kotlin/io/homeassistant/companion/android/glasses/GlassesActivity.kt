@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.xr.glimmer.GlimmerTheme
 import androidx.xr.glimmer.Text
@@ -76,6 +75,7 @@ class GlassesActivity : ComponentActivity() {
 
     private val camera2Controller by lazy { Camera2Controller(this) }
 
+    @RequiresPermission(Manifest.permission.CAMERA)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -83,9 +83,7 @@ class GlassesActivity : ComponentActivity() {
             GlimmerTheme {
                 if (isPermissionsGranted) {
                     MainScreen(
-                        onClick = {
-                            camera2Controller.capturePhoto()
-                        },
+                        onClick = { capturePhoto() },
                     )
                 } else {
                     PermissionNotice()
@@ -94,6 +92,15 @@ class GlassesActivity : ComponentActivity() {
         }
 
         requestPermissions()
+    }
+
+    @RequiresPermission(Manifest.permission.CAMERA)
+    private fun capturePhoto() {
+        // TODO
+        camera2Controller.capturePhotoWithSession { jpegBytes ->
+            Timber.d("ZZZ: Image captured, size: ${jpegBytes.size}")
+            Camera2Utils.saveBytesToFile(this, jpegBytes)
+        }
     }
 
     @OptIn(ExperimentalProjectedApi::class)
@@ -113,32 +120,6 @@ class GlassesActivity : ComponentActivity() {
                 ),
             )
         }
-    }
-
-    @RequiresPermission(Manifest.permission.CAMERA)
-    override fun onResume() {
-        super.onResume()
-        Timber.d("ZZZ: onResume")
-
-        if (isPermissionsGranted) {
-            camera2Controller.openCamera { jpegBytes ->
-                Timber.d("ZZZ: Image captured, size: ${jpegBytes.size}")
-            }
-        } else {
-            Timber.e("ZZZ: Cannot open camera: permission not granted")
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        Timber.d("ZZZ: onPause")
-        camera2Controller.closeCamera()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Timber.d("ZZZ: onDestroy")
-        camera2Controller.closeCamera()
     }
 
     // Launches the assist activity for glasses.
