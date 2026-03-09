@@ -49,6 +49,7 @@
             "./gradlew :glasses:ktlintFormat *": "allow",
             "./gradlew :glasses:runKtlintFormatOverMainSourceSet *": "allow",
             // Build commands.
+            "./gradlew alldependencies --write-lock *": "allow",
             "./gradlew :app:assembleDebug *": "allow",
             "./gradlew :app:assembleFullDebug *": "allow",
             "./gradlew :app:compileDebugKotlin *": "allow",
