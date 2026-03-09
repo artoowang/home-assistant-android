@@ -10,6 +10,7 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureFailure
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.TotalCaptureResult
+import android.media.Image
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
@@ -24,19 +25,16 @@ class Camera2Controller(private val context: Context) {
     private var imageReader: ImageReader? = null
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
-
-    // -----------------------------------------------------------------------------------------------------------------
-    // State flags: we need to use these flags to track asynchronous events (but all on the same thread), since there is
-    // no guarantee those events will be received in a fixed order.
+    private var onImageCaptured: ((ByteArray) -> Unit)? = null
 
     // Indicates if CaptureCallback.onCaptureCompleted() has been invoked.
     private var captureCompleted = false
-    // Indicates if OnImageAvailableListener has been invoked.
-    private var imageReceived = false
+
+    // Indicates if OnImageAvailableListener has been invoked and provides an image.
+    private var capturedImage: Image? = null
+
     // Indicates if cleanup() has already been called.
     private var hasCleanedUp = false
-
-    // -----------------------------------------------------------------------------------------------------------------
 
     private val cameraManager: CameraManager by lazy {
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -51,7 +49,10 @@ class Camera2Controller(private val context: Context) {
             return
         }
 
-        resetCaptureState()
+        this.onImageCaptured = onImageCaptured
+        captureCompleted = false
+        capturedImage = null
+        hasCleanedUp = false
 
         handlerThread = HandlerThread("Camera2Controller").also { it.start() }
         handler = Handler(handlerThread!!.looper)
@@ -77,34 +78,13 @@ class Camera2Controller(private val context: Context) {
                         Timber.d("ZZZ: Ignoring image - the camera capture has already been cleaned up")
                         return@setOnImageAvailableListener
                     }
-
-                    val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
-                    var jpegBytes: ByteArray? = null
-
-                    try {
-                        if (image.format == ImageFormat.YUV_420_888) {
-                            Timber.d("ZZZ: New YUV image: ${image.width}x${image.height}")
-                            jpegBytes = Camera2Utils.convertYuvToJpeg(image)
-                        } else {
-                            Timber.w("ZZZ: Unexpected format: ${image.format}")
-                        }
-                    } catch (e: Exception) {
-                        Timber.e(e, "ZZZ: Failed to process image")
-                    } finally {
-                        // Once we reached here, we are done with the `image` and `reader`.
-                        image.close()
-                        imageReceived = true
-                        if (captureCompleted) {
-                            Timber.d("ZZZ: Image processed and capture result received, cleaning up")
-                            cleanup()
-                        }
+                    capturedImage = reader.acquireLatestImage()
+                    if (capturedImage == null) {
+                        Timber.e("ZZZ: Image is null")
+                        cleanup()
+                        return@setOnImageAvailableListener
                     }
-
-                    if (jpegBytes != null) {
-                        onImageCaptured(jpegBytes)
-                    } else {
-                        Timber.e("ZZZ: Failed to obtain JPEG image")
-                    }
+                    maybeProcessImage()
                 },
                 handler,
             )
@@ -119,11 +99,37 @@ class Camera2Controller(private val context: Context) {
         }
     }
 
-    // Resets capture state flags.
-    private fun resetCaptureState() {
-        captureCompleted = false
-        imageReceived = false
-        hasCleanedUp = false
+    private fun maybeProcessImage() {
+        val image = capturedImage
+        if (image == null || !captureCompleted) {
+            return
+        }
+        capturedImage = null
+
+        Timber.d("ZZZ: Image processed and capture result received, cleaning up")
+
+        var jpegBytes: ByteArray? = null
+        try {
+            if (image.format == ImageFormat.YUV_420_888) {
+                Timber.d("ZZZ: New YUV image: ${image.width}x${image.height}")
+                jpegBytes = Camera2Utils.convertYuvToJpeg(image)
+            } else {
+                Timber.w("ZZZ: Unexpected format: ${image.format}")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "ZZZ: Failed to process image")
+        } finally {
+            image.close()
+            cleanup()
+        }
+
+        val onImageCaptured = this.onImageCaptured
+        this.onImageCaptured = null
+        if (jpegBytes != null && onImageCaptured != null) {
+            onImageCaptured(jpegBytes)
+        } else {
+            Timber.e("ZZZ: Failed to obtain JPEG image")
+        }
     }
 
     private fun getFirstCameraId(): String? {
@@ -204,10 +210,7 @@ class Camera2Controller(private val context: Context) {
             ) {
                 Timber.d("ZZZ: Capture completed")
                 captureCompleted = true
-                if (imageReceived) {
-                    Timber.d("ZZZ: Capture result received and image processed, cleaning up")
-                    cleanup()
-                }
+                maybeProcessImage()
             }
 
             override fun onCaptureFailed(
