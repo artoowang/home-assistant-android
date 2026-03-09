@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.concurrent.ktx)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.material3)
     implementation(libs.appcompat)
     implementation(libs.community.material.typeface)

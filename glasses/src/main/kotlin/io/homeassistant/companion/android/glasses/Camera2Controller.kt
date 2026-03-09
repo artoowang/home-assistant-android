@@ -5,10 +5,12 @@ import android.content.Context
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureFailure
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
 import android.media.Image
 import android.media.ImageReader
@@ -26,15 +28,16 @@ class Camera2Controller(private val context: Context) {
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
     private var onImageCaptured: ((ByteArray) -> Unit)? = null
-
-    // Indicates if CaptureCallback.onCaptureCompleted() has been invoked.
-    private var captureCompleted = false
+    private var cameraCharacteristics: CameraCharacteristics? = null
 
     // Indicates if OnImageAvailableListener has been invoked and provides an image.
     private var capturedImage: Image? = null
 
     // Indicates if cleanup() has already been called.
     private var hasCleanedUp = false
+
+    // Stores the image orientation from capture result. This is also used to indicate if the capture is complete.
+    private var imageOrientation: Int? = null
 
     private val cameraManager: CameraManager by lazy {
         context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -50,9 +53,10 @@ class Camera2Controller(private val context: Context) {
         }
 
         this.onImageCaptured = onImageCaptured
-        captureCompleted = false
         capturedImage = null
         hasCleanedUp = false
+        imageOrientation = null
+        cameraCharacteristics = null
 
         handlerThread = HandlerThread("Camera2Controller").also { it.start() }
         handler = Handler(handlerThread!!.looper)
@@ -64,8 +68,9 @@ class Camera2Controller(private val context: Context) {
                 return
             }
 
-            val cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId)
-            Camera2Utils.printCharacteristics(cameraId, cameraCharacteristics)
+            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+            Camera2Utils.printCharacteristics(cameraId, characteristics)
+            cameraCharacteristics = characteristics
 
             val width = 1024
             val height = 768
@@ -100,26 +105,27 @@ class Camera2Controller(private val context: Context) {
     }
 
     private fun maybeProcessImage() {
-        val image = capturedImage
-        if (image == null || !captureCompleted) {
+        val capturedImage = this.capturedImage
+        val imageOrientation = this.imageOrientation
+        if (capturedImage == null || imageOrientation == null) {
             return
         }
-        capturedImage = null
+        this.capturedImage = null
 
         Timber.d("ZZZ: Image processed and capture result received, cleaning up")
 
         var jpegBytes: ByteArray? = null
         try {
-            if (image.format == ImageFormat.YUV_420_888) {
-                Timber.d("ZZZ: New YUV image: ${image.width}x${image.height}")
-                jpegBytes = Camera2Utils.convertYuvToJpeg(image)
+            if (capturedImage.format == ImageFormat.YUV_420_888) {
+                Timber.d("ZZZ: New YUV image: ${capturedImage.width}x${capturedImage.height}")
+                jpegBytes = Camera2Utils.convertYuvToJpeg(capturedImage, imageOrientation)
             } else {
-                Timber.w("ZZZ: Unexpected format: ${image.format}")
+                Timber.w("ZZZ: Unexpected format: ${capturedImage.format}")
             }
         } catch (e: Exception) {
             Timber.e(e, "ZZZ: Failed to process image")
         } finally {
-            image.close()
+            capturedImage.close()
             cleanup()
         }
 
@@ -208,8 +214,25 @@ class Camera2Controller(private val context: Context) {
                 request: CaptureRequest,
                 result: TotalCaptureResult,
             ) {
-                Timber.d("ZZZ: Capture completed")
-                captureCompleted = true
+                // Try to get JPEG_ORIENTATION from the capture result. If not available, assume 0.
+                val captureOrientationResult = result.get(CaptureResult.JPEG_ORIENTATION)
+                Timber.d("ZZZ: Capture completed, JPEG orientation result: $captureOrientationResult")
+                val captureOrientation = if (captureOrientationResult != null) {
+                    captureOrientationResult
+                } else {
+                    Timber.i("ZZZ: No JPEG orientation provided, assume 0")
+                    0
+                }
+
+                // Combine the give orientation with the sensor orientation, and assign to `imageOrientation`.
+                val characteristics = cameraCharacteristics
+                imageOrientation = if (characteristics != null) {
+                    Camera2Utils.combineOrientationWithSensorOrientation(characteristics, captureOrientation)
+                } else {
+                    Timber.w("ZZZ: No camera characteristics provided, keep the original orientation")
+                    captureOrientation
+                }
+
                 maybeProcessImage()
             }
 
