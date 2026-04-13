@@ -83,7 +83,11 @@ class GlassesActivity : ComponentActivity() {
             GlimmerTheme {
                 if (isPermissionsGranted) {
                     MainScreen(
-                        onClick = { capturePhoto() },
+                        onClick = {
+                            // TODO: For now, rewiring tap to test capture a photo
+                            capturePhoto()
+                            // startAssistActivity()
+                        },
                     )
                 } else {
                     PermissionNotice()
