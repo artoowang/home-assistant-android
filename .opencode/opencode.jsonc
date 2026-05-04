@@ -26,6 +26,7 @@
         "edit": {
             "app/**": "allow",
             "glasses/**": "allow",
+            "tasks/**": "allow",
         },
         "bash": {
             "*": "ask",
