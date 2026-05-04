@@ -52,3 +52,66 @@ Here's a summary of each class in the Glasses → WebSocket chain:
 
 6. **WebSocketCore** (`common` module, interface + `WebSocketCoreImpl`)
    Core OkHttp WebSocket handler. Manages connection lifecycle (auth, reconnect, shutdown), message queuing, and implements `sendBytes()` to transmit raw `ByteArray` data over the WebSocket.
+
+### OpenCode Proposal how to upload image to Home Assistant for its component
+
+**Goal**: Send captured images from Glasses to a multimodal LLM (e.g., Ollama with vision model) via Home Assistant.
+
+**HA Endpoint**: `/api/image/upload` (confirmed exists in `homeassistant/components/image_upload/__init__.py`)
+- Accepts multipart form data with image file
+- Returns JSON with: `id` (image_id), `path` (local filesystem path, added in PR #152093), `content_type`
+
+**Security Concern**: 
+- `/api/image/serve/{image_id}/{filename}` is **public** (`requires_auth = False`)
+- Anyone with the URL can access images
+
+**Solution**: Use the `path` field from upload response
+- The upload returns a local filesystem path like `/config/image/abc123/original`
+- Pass this **local path** directly to Ollama/custom vision components
+- Avoids the public HTTP serve endpoint entirely
+- Works because Ollama runs locally on the same network as HA
+
+**Flow for Glasses App**:
+```
+1. Capture photo in GlassesActivity.capturePhoto()
+   ↓
+2. Upload to /api/image/upload via WebSocketRepository
+   ↓
+3. Get response with "path" field (local filesystem path)
+   ↓
+4. Pass path to AssistRepository/GlassesViewModel
+   ↓
+5. Call Ollama vision component with local path:
+   service: ollama_vision.analyze_image
+   data:
+     image_url: "/config/image/abc123/original"  # local path
+     prompt: "What do you see?"
+   ↓
+6. LLM analyzes image and returns text description
+   ↓
+7. Text appears in GlassesViewModel.conversation
+```
+
+**Implementation Steps**:
+1. Add `suspend fun uploadImage(data: ByteArray): String?` to `WebSocketRepository`
+2. Implement in `WebSocketRepositoryImpl` using existing `okHttpClient` for multipart POST
+3. Add `fun sendImage(imageBytes: ByteArray)` to `GlassesViewModel`
+4. Update `AssistRepository` to handle image input (call Ollama service via HA API)
+5. Integrate with `GlassesActivity.capturePhoto()` to trigger upload + analysis
+
+**Note**: Official Ollama integration doesn't support images yet. Use custom components like `ollama_vision` or wait for official multimodal support (architectere discussion #1085 ongoing).
+
+### Testing with Home Assistant image upload
+
+1. Create a long-live token in HA Web UI, account > security.
+2. Run
+  ```shell
+  curl -X POST \
+    -H "Authorization: Bearer <long_live_token>" \
+    -F "file=@/Users/artoowang/Programs/home-assistant-android/app/src/main/res/drawable-nodpi/widget_example_camera.jpg" \
+    https://ha.cpwang.co/api/image/upload
+  ```
+3. Got something like `{"id":"<id>","filesize":37017,"content_type":"image/jpeg","name":"widget_example_camera.jpg","uploaded_at":"2026-05-04T04:20:22.188264+00:00"}`
+4. Note the uploaded image will be public: I can access it through https://ha.cpwang.co/api/image/serve/{id}/original  
+  So the only security is the ID is unknown.
+5. It is also listed at https://ha.cpwang.co/media-browser/browser/app%2Cmedia-source%3A%2F%2Fimage_upload
