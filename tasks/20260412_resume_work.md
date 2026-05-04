@@ -30,3 +30,25 @@ I believe I can restore the old behavior by adding startAssistActivity() back.\
 3. **New API service** - Add Retrofit multipart to `HomeAssistantApis.kt`, create repository.
 
 **Next step** Research into HA and see if extending the existing WebSocket makes sense or not.
+
+### Summary of the current websocket usage
+
+Here's a summary of each class in the Glasses → WebSocket chain:
+
+1. **GlassesActivity** (`glasses` module)
+   Entry point for the glasses XR experience. Manages camera/audio permissions, hosts the main tap-to-interact UI, and launches `GlassesAssistActivity` for assist sessions (currently commented out in favor of photo capture testing).
+
+2. **GlassesAssistActivity** (`glasses` module)
+   Hosts the active assist session for glasses. Uses `GlassesViewModel` to start assist/recording, monitors assist state to auto-close when the session ends, and renders the voice assist UI.
+
+3. **GlassesViewModel** (`glasses` module)
+   ViewModel bridging `GlassesAssistActivity` UI and `AssistRepository`. Exposes assist state, conversation history, mic toggle, and triggers assist session lifecycle methods.
+
+4. **AssistRepository** (`common` module)
+   Shared repository managing Home Assistant Assist pipeline logic. Handles pipeline selection, voice/text modes, and delegates binary data (voice) sending to `WebSocketRepository`.
+
+5. **WebSocketRepository** (`common` module, interface + `WebSocketRepositoryImpl`)
+   Defines feature-level WebSocket operations (assist, thread datasets). `sendVoiceData()` forwards voice bytes to `WebSocketCore.sendBytes()`; image support would add a similar `sendImageData()` method here.
+
+6. **WebSocketCore** (`common` module, interface + `WebSocketCoreImpl`)
+   Core OkHttp WebSocket handler. Manages connection lifecycle (auth, reconnect, shutdown), message queuing, and implements `sendBytes()` to transmit raw `ByteArray` data over the WebSocket.
